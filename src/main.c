@@ -78,6 +78,7 @@ int main(void){
     };
 
     enum GameState GameState = WAITING_FOR_START;
+    int spieler;
     char start[15];
     char checksum[14];
 
@@ -99,12 +100,14 @@ int main(void){
                     start[14] = rxb;
                     // Check for start message
                     if (start[0] == 'S'){
+                        spieler = 2;
                         GameState = GENERATING_FIELD;
                         break;
                     } 
                 }else if((GPIOC->IDR & GPIO_IDR_13) == 0) {
                             LOG("START11928041\n");
                             delay(100);
+                            spieler = 1;
                             GameState = WAITING_FOR_CHECKSUM;
                 }
                 break;
@@ -113,17 +116,17 @@ int main(void){
                 // Check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
                     rxb = USART2->RDR;
-                    const char checksum[] = rxb;
+                    checksum[14] = rxb;
                     // Check for checksum message
                     if (checksum[0] == 'C'){
-                        if (start[0] == 'S'){
+                        if (spieler == 2){
                             if((GPIOC->IDR & GPIO_IDR_13) == 0) {
                                 LOG("START11928041\n");
                                 delay(100);
                                 GameState = PLAYING;
                                 break;
                             }
-                         }else {
+                         }else if(spieler == 1){
                         GameState = GENERATING_FIELD;
                         }
                     }
