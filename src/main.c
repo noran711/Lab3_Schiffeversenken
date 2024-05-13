@@ -73,13 +73,13 @@ int main(void){
     enum GameState {
         WAITING_FOR_START,
         WAITING_FOR_CHECKSUM,
-        SPIELER1,
-        SPIELER2,
         GENERATING_FIELD,
         PLAYING,
     };
 
     enum GameState GameState = WAITING_FOR_START;
+    char start[15];
+    char checksum[14];
 
     for(;;){
         // Wait for the data to be received
@@ -96,26 +96,42 @@ int main(void){
                 //check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
                     rxb = USART2->RDR;
+                    start[14] = rxb;
                     // Check for start message
-                    if (rxb == 'START'){
-                        GameState = SPIELER2;
+                    if (start[0] == 'S'){
+                        GameState = GENERATING_FIELD;
                         break;
                     } 
                 }else if((GPIOC->IDR & GPIO_IDR_13) == 0) {
                             LOG("START11928041\n");
                             delay(100);
-                            GameState = SPIELER1;
+                            GameState = WAITING_FOR_CHECKSUM;
                 }
                 break;
 
-            case SPIELER1:
-                // Generate the start for player 1
-
-
+            case WAITING_FOR_CHECKSUM:
+                // Check for incoming messages
+                if (USART2->ISR & USART_ISR_RXNE) {
+                    rxb = USART2->RDR;
+                    const char checksum[] = rxb;
+                    // Check for checksum message
+                    if (checksum[0] == 'C'){
+                        if (start[0] == 'S'){
+                            if((GPIOC->IDR & GPIO_IDR_13) == 0) {
+                                LOG("START11928041\n");
+                                delay(100);
+                                GameState = PLAYING;
+                                break;
+                            }
+                         }else {
+                        GameState = GENERATING_FIELD;
+                        }
+                    }
+                }
                 break;
 
-            case SPIELER2:
-                // Generate the start for player 2
+            case GENERATING_FIELD:
+                // Generate the game board and calculate checksum
 
                 break;
 
