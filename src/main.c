@@ -24,6 +24,8 @@ int _write( int handle, char* data, int size ) {
     return size;
 }
 
+
+
 // Function to add a small delay
 void delay(uint32_t milliseconds) {
     // Assuming a clock frequency of 48 MHz
@@ -67,21 +69,68 @@ int main(void){
 
     uint8_t rxb = '\0';
 
+    // Variable to track the game state
+    enum GameState {
+        WAITING_FOR_START,
+        WAITING_FOR_CHECKSUM,
+        SPIELER1,
+        SPIELER2,
+        GENERATING_FIELD,
+        PLAYING,
+    };
+
+    enum GameState GameState = WAITING_FOR_START;
+
     for(;;){
         // Wait for the data to be received
         //while( !( USART2->ISR & USART_ISR_RXNE ) );
 
         // Read the data from the RX buffer
-        rxb = USART2->RDR;
+        //rxb = USART2->RDR;
 
         // Print the received data to the console
         //LOG("[DEBUG-LOG]: %d\r\n", rxb );
+        
+        switch (GameState){
+            case WAITING_FOR_START:
+                //check for incoming messages
+                if (USART2->ISR & USART_ISR_RXNE) {
+                    rxb = USART2->RDR;
+                    // Check for start message
+                    if (rxb == 'START'){
+                        GameState = SPIELER2;
+                        break;
+                    } 
+                }else if((GPIOC->IDR & GPIO_IDR_13) == 0) {
+                            LOG("START11928041\n");
+                            delay(100);
+                            GameState = SPIELER1;
+                }
+                break;
+
+            case SPIELER1:
+                // Generate the start for player 1
 
 
-        if((GPIOC->IDR & GPIO_IDR_13) == 0) {
-            LOG("Button pressed\n");
-            delay(100);
+                break;
+
+            case SPIELER2:
+                // Generate the start for player 2
+
+                break;
+
+
+            case PLAYING:
+                // Game logic
+
+                break;
+
+            
         }
+
+
+
+
     
         }
     }
