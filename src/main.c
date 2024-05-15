@@ -17,9 +17,12 @@
 // Select the Baudrate for the UART
 #define BAUDRATE 9600
 
+#define BOARD_SIZE 10
+
 
 // Maximal mögliche Länge der Nachricht (einschließlich Nullterminator)
 #define MAX_MESSAGE_LENGTH 15 
+
 
 // For supporting printf function we override the _write function to redirect the output to UART
 int _write( int handle, char* data, int size ) {
@@ -30,6 +33,7 @@ int _write( int handle, char* data, int size ) {
     }
     return size;
 }
+
 
 // Funktion zur Generierung eines zufälligen Spielfelds mit den gegebenen Schiffen
 void generate_field(int field[10][10]) {
@@ -42,10 +46,11 @@ void generate_field(int field[10][10]) {
 
     // Setze die Schiffe auf das Spielfeld
     int ships[] = {5, 4, 4, 3, 3, 3, 2, 2, 2, 2}; // Größe der Schiffe
-    srand(time(NULL)); // Initialisiere den Zufallszahlengenerator
+    srand(time(NULL));
     for (int s = 0; s < 10; ++s) {
         int ship_size = ships[s];
         // Wähle zufällige Startposition und Orientierung für das Schiff
+
         int row = rand() % 10;
         int col = rand() % 10;
         int horizontal = rand() % 2; // 0 für horizontal, 1 für vertikal
@@ -113,10 +118,39 @@ void calculate_checksum(int field[10][10], char checksum_msg[]) {
 
     // Füge den Zeilenumbruch hinzu
     checksum_msg[msg_pos] = '\n';
-    //checksum_msg[msg_pos + 1] = '\0'; // Nullterminierung der Zeichenkette
+    checksum_msg[msg_pos + 1] = '\0'; // Nullterminierung der Zeichenkette
 }
 
+// Funktion zur Extraktion der Trefferzahlen aus der empfangenen Checksumme
+void extract_hit_counts(const char* checksum_msg, int* hit_counts) {
+    // Die ersten zwei Zeichen überspringen ('CS')
+    for (int i = 2; i < 12; ++i) {
+        hit_counts[i - 2] = checksum_msg[i] - '0';
+    }
+}
 
+// Funktion zum Sortieren der Spalten basierend auf der Anzahl der Treffer
+void sort_columns_by_hits(int* hit_counts, int* sorted_columns) {
+    for (int i = 0; i < BOARD_SIZE; ++i) {
+        sorted_columns[i] = i;
+    }
+
+    // Einfaches Bubblesort zur Sortierung der Spalten nach der Anzahl der Treffer
+    for (int i = 0; i < BOARD_SIZE - 1; ++i) {
+        for (int j = 0; j < BOARD_SIZE - i - 1; ++j) {
+            if (hit_counts[j] < hit_counts[j + 1]) {
+                // Spalten-Indizes tauschen
+                int temp = sorted_columns[j];
+                sorted_columns[j] = sorted_columns[j + 1];
+                sorted_columns[j + 1] = temp;
+                // Anzahl der Treffer tauschen
+                temp = hit_counts[j];
+                hit_counts[j] = hit_counts[j + 1];
+                hit_counts[j + 1] = temp;
+            }
+        }
+    }
+}
 
 // Function to add a small delay
 void delay(uint32_t milliseconds) {
@@ -125,6 +159,8 @@ void delay(uint32_t milliseconds) {
         __NOP();
     }
 }
+
+
 
 int main(void){
     // Configure the system clock to 48MHz
@@ -166,21 +202,28 @@ int main(void){
         WAITING_FOR_START,
         WAITING_FOR_CHECKSUM,
         GENERATING_FIELD,
-        PLAYING,
+        PLAYER_1,
+        PLAYER_2,
         WAITING_FOR_START_MESSAGE,
     }; enum GameState GameState = WAITING_FOR_START;
 
     int spieler;
-    char start[15];
-    char checksum_g[15];
+    char start[15] = {0};
+    char start_1[15] = {0};
+    char checksum_g[15] = {0};
     int field[10][10];
-    char checksum[14];
+    char checksum[15] = {0};
     int message_length = 0; // Länge der bisher empfangenen Nachricht
     int message_l_checksum = 0;
-
-    
+    // Array zur Speicherung der Anzahl der Treffer in den Spalten
+    int hit_counts[BOARD_SIZE] = {0};
+    // Array zur Speicherung der sortierten Spalten-Indizes
+    int sorted_columns[BOARD_SIZE] = {0};
+    // Globale Variable zur Speicherung der Checksumme des Gegners
+    char opponent_checksum[15] = {0};
 
     for(;;){
+
         // Wait for the data to be received
         //while( !( USART2->ISR & USART_ISR_RXNE ) );
 
@@ -191,7 +234,8 @@ int main(void){
         //LOG("[DEBUG-LOG]: %d\r\n", rxb );
         //GameState = WAITING_FOR_START;
         
-        switch (GameState){
+        switch(GameState){
+
             case WAITING_FOR_START:
                 // Überprüfe den Startknopf
                 if ((GPIOC->IDR & GPIO_IDR_13) == 0) {
@@ -210,6 +254,7 @@ int main(void){
                         if (received_char == '\n') {
                             spieler = 2; // Spieler auf 2 setzen
                             GameState = GENERATING_FIELD; // Spielzustand entsprechend setzen
+                            message_length = 0;
                             break;
                             
                         }
@@ -222,20 +267,24 @@ int main(void){
             case WAITING_FOR_CHECKSUM:
                 // Check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
-                    char received_c = USART2->RDR;
-                    checksum_g[message_l_checksum] = received_c;
-                    message_l_checksum++;
-                    // Check for checksum message
-                    if (received_c == '\n'){
+                        char received_c = USART2->RDR;
+                        checksum_g[message_l_checksum] = received_c;
+                        message_l_checksum++;
+                        // Check for checksum message
+                        if (received_c == '\n') {
+                            checksum_g[message_l_checksum] = '\0'; // Nullterminator hinzufügen
+                            //LOG("%s", checksum_g); // Ausgabe der gespeicherten Checksumme
+                            message_l_checksum = 0; // Zurücksetzen des Zählers
                         if (spieler == 2){
                                 LOG("START11928041\n");
-                                GameState = PLAYING;
+                                GameState = PLAYER_2;
                                 break;
-                         }else if(spieler == 1){
+                            }
+                        else if(spieler == 1){
                         GameState = GENERATING_FIELD;
                         break;
                         }
-                    }
+                }
                 }
                 break;
 
@@ -259,22 +308,33 @@ int main(void){
             case WAITING_FOR_START_MESSAGE:
                 //check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
-                     char received_char = USART2->RDR;
-                        start[message_length] = received_char;
+                     char received_ch = USART2->RDR;
+                        start_1[message_length] = received_ch;
                         message_length++;
-                        
+                        //LOG("%s", start_1);
                         // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
-                        if (received_char == '\n') {
-                            GameState = PLAYING; // Spielzustand entsprechend setzen
+                        if (received_ch == '\n') {
+                            
+                            GameState = PLAYER_1; // Spielzustand entsprechend setzen
+                            message_length = 0;
                             break;  
                         }
                     }
                 break;
 
 
-            case PLAYING:
+            case PLAYER_1:
                 // Game logic
+                
+                // Extrahiere die Anzahl der Treffer aus der Checksumme
+                extract_hit_counts(checksum_g, hit_counts);
 
+                
+                // Sortiere die Spalten basierend auf der Anzahl der Treffer
+                sort_columns_by_hits(hit_counts, sorted_columns);
+
+                LOG("BOOM09\n");
+                
                 break;
 
             
