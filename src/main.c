@@ -172,11 +172,11 @@ int main(void){
 
     int spieler;
     char start[15];
-    char checksum_g[14];
+    char checksum_g[15];
     int field[10][10];
     char checksum[14];
-    char received_message[MAX_MESSAGE_LENGTH]; // Puffer zum Speichern der empfangenen Nachricht
     int message_length = 0; // Länge der bisher empfangenen Nachricht
+    int message_l_checksum = 0;
 
     
 
@@ -189,55 +189,31 @@ int main(void){
 
         // Print the received data to the console
         //LOG("[DEBUG-LOG]: %d\r\n", rxb );
-        GameState = WAITING_FOR_START;
+        //GameState = WAITING_FOR_START;
         
         switch (GameState){
             case WAITING_FOR_START:
-                // Überprüfe auf eingehende Nachrichten über UART
-                /*if ((USART2->ISR & USART_ISR_RXNE) != 0) {
-                    char received_char = USART2->RDR;
-                    
-                    // Speichern des empfangenen Zeichens im Puffer
-                    start[message_length] = received_char;
-                    message_length++;
-                    
-                    // Überprüfe, ob die gesamte Nachricht empfangen wurde
-                    if (message_length >= 2 && start[0] == 'S' && received_char == '\n') {
-                        // Die gesamte Nachricht wurde empfangen
-                        start[message_length] = '\0'; // Nullterminator hinzufügen
-                        spieler = 2; // Spieler auf 2 setzen
-                        GameState = GENERATING_FIELD; // Spielzustand entsprechend setzen
-                        break; // Schleife verlassen
-                    }
-                } */
-                
                 // Überprüfe den Startknopf
                 if ((GPIOC->IDR & GPIO_IDR_13) == 0) {
                     // Startnachricht senden und Spielzustand ändern
                     LOG("START11928041\n");
-                    delay(100);
                     spieler = 1;
                     GameState = WAITING_FOR_CHECKSUM;
                     break;
                 } 
-                // Überprüfe auf eingehende Nachrichten über UART
-                else if ((USART2->ISR & USART_ISR_RXNE) != 0) {
-                    char received_char = USART2->RDR;
-                    LOG("%s", received_char);
-                    
-                    // Speichern des empfangenen Zeichens im Puffer
-                    start[message_length] = received_char;
-                    message_length++;
-                    
-                    // Überprüfe, ob die gesamte Nachricht empfangen wurde
-                    if (message_length >= 2 && start[0] == 'S' && received_char == '\n') {
-                        // Die gesamte Nachricht wurde empfangen
-                        start[message_length] = '\0'; // Nullterminator hinzufügen
-                        spieler = 2; // Spieler auf 2 setzen
-                        GameState = GENERATING_FIELD; // Spielzustand entsprechend setzen
-                        break; // Schleife verlassen
+                if (USART2->ISR & USART_ISR_RXNE) {
+                     char received_char = USART2->RDR;
+                        start[message_length] = received_char;
+                        message_length++;
+                        
+                        // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
+                        if (received_char == '\n') {
+                            spieler = 2; // Spieler auf 2 setzen
+                            GameState = GENERATING_FIELD; // Spielzustand entsprechend setzen
+                            break;
+                            
+                        }
                     }
-                } 
                 break; 
 
                             
@@ -246,17 +222,15 @@ int main(void){
             case WAITING_FOR_CHECKSUM:
                 // Check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
-                    rxb = USART2->RDR;
-                    checksum_g[14] = rxb;
+                    char received_c = USART2->RDR;
+                    checksum_g[message_l_checksum] = received_c;
+                    message_l_checksum++;
                     // Check for checksum message
-                    if (checksum_g[0] == 'C'){
+                    if (received_c == '\n'){
                         if (spieler == 2){
-                            if((GPIOC->IDR & GPIO_IDR_13) == 0) {
                                 LOG("START11928041\n");
-                                delay(100);
                                 GameState = PLAYING;
                                 break;
-                            }
                          }else if(spieler == 1){
                         GameState = GENERATING_FIELD;
                         break;
@@ -285,13 +259,16 @@ int main(void){
             case WAITING_FOR_START_MESSAGE:
                 //check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
-                    rxb = USART2->RDR;
-                    start[14] = rxb;
-                    // Check for start message
-                    if (start[0] == 'S'){
-                        GameState = PLAYING;
-                        break;
-                    } 
+                     char received_char = USART2->RDR;
+                        start[message_length] = received_char;
+                        message_length++;
+                        
+                        // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
+                        if (received_char == '\n') {
+                            GameState = PLAYING; // Spielzustand entsprechend setzen
+                            break;  
+                        }
+                    }
                 break;
 
 
@@ -309,4 +286,4 @@ int main(void){
     
         }
     }
-}
+
