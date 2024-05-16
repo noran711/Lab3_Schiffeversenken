@@ -329,11 +329,10 @@ int main(void){
                 // Extrahiere die Anzahl der Treffer aus der Checksumme
                 extract_hit_counts(checksum_g, hit_counts);
 
-                
                 // Sortiere die Spalten basierend auf der Anzahl der Treffer
                 sort_columns_by_hits(hit_counts, sorted_columns);
 
-                LOG("BOOM09\n");
+                
                 
                 break;
 
