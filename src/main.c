@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdbool.h>
 
 #define DEBUG
 
@@ -215,12 +216,27 @@ int main(void){
     char checksum[15] = {0};
     int message_length = 0; // Länge der bisher empfangenen Nachricht
     int message_l_checksum = 0;
+    int message_l = 0;
     // Array zur Speicherung der Anzahl der Treffer in den Spalten
     int hit_counts[BOARD_SIZE] = {0};
     // Array zur Speicherung der sortierten Spalten-Indizes
     int sorted_columns[BOARD_SIZE] = {0};
     // Globale Variable zur Speicherung der Checksumme des Gegners
     char opponent_checksum[15] = {0};
+
+    bool schiessen = false;
+    bool beschossen_werden = false;
+    bool treffer = false;
+    bool kein_treffer = false;
+    bool schuss_gesendet = false;
+
+    int meine_treffer = 0;
+    int treffer_g = 0;
+    int meine_shots = 0;
+    int shots_g = 0;
+
+    char nachricht[1] = {0};
+
 
     for(;;){
 
@@ -331,6 +347,49 @@ int main(void){
 
                 // Sortiere die Spalten basierend auf der Anzahl der Treffer
                 sort_columns_by_hits(hit_counts, sorted_columns);
+
+                if(schiessen){
+                    if(treffer){
+                        // Feld neben treffer finden
+                        // überprüfen ob ich schon mal dahingeschossen habe
+                        //Nachricht senden Bsp. BOOM09\n
+                        meine_shots++;
+                        treffer = false;
+                    }
+                    if(kein_treffer){
+                        // erste Spalte bzw. spalte für spalte von sorted_columns zufällige Reihe
+                        // überprüfen ob schon dorthin geschossen wurde
+                        // Nachricht senden bsp. BOOM09\n
+                        meine_shots++;
+                        kein_treffer = false;
+                    }
+                    schuss_gesendet = true;
+                    
+                }
+
+                if(schuss_gesendet){
+                    if (USART2->ISR & USART_ISR_RXNE) {
+                     char received_m = USART2->RDR;
+                        nachricht[message_l] = received_m;
+                        message_l++;
+                        // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
+                        if (received_m == '\n') {
+                            if(nachricht[0] == 'T'){
+                                meine_treffer++;
+                                treffer = true;
+                            }
+                            if(nachricht[0] == 'W'){
+                                kein_treffer = true;
+                            }
+                            beschossen_werden = true;
+                        }
+                    }
+                }
+
+                if(beschossen_werden){
+
+                }
+
 
                 
                 
