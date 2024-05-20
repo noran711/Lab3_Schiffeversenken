@@ -360,12 +360,11 @@ int main(void){
 
                 // Sortiere die Spalten basierend auf der Anzahl der Treffer
                 sort_columns_by_hits(hit_counts, sorted_columns);
-
+              
                 if(schiessen){
                     if(treffer){
                         // Feld neben treffer finden
-                        int row = 
-                        int col =
+                        
                         // überprüfen ob ich schon mal dahingeschossen habe
                         //Nachricht senden Bsp. BOOM09\n
                         meine_shots++;
@@ -410,24 +409,27 @@ int main(void){
                      char received = USART2->RDR;
                         schuss_g[message_length_s] = received;
                         message_length_s++;
+                        
                         // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
                         if (received == '\n') {
-                            // Überprüfen ob Treffer oder Wasser
-                            int row = schuss_g[5];
-                            int col = schuss_g[4];
+                            schuss_g[message_length_s] = '\0';  // Null-Terminierung des Strings
 
-                            if(field[row][col] > 0){
+                            // Extrahiere die Zeilen- und Spalteninformationen aus schuss_g
+                            int row = schuss_g[5] - '0';
+                            int col = schuss_g[4] - '0';
+
+                            if (field[row][col] > 0) {
                                 treffer_g++;
                                 shots_g++;
-                                LOG('T\n');
-                            }
-                            if(field[row][col] == 0){
+                                LOG("T\n");
+                            } else if (field[row][col] == 0) {
                                 shots_g++;
-                                LOG('W\n');
+                                LOG("W\n");
                             }
+                            message_length_s = 0;  // Setze message_length_s für die nächste Nachricht zurück
                             schiessen = true;
                             beschossen_werden = false;
-
+                            
                         }
                     }
                 }
