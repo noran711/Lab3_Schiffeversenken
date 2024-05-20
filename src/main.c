@@ -20,6 +20,9 @@
 
 #define BOARD_SIZE 10
 
+#define ROWS 10
+#define COLS 10
+
 
 // Maximal mögliche Länge der Nachricht (einschließlich Nullterminator)
 #define MAX_MESSAGE_LENGTH 15 
@@ -220,7 +223,7 @@ int main(void){
     char start[15] = {0};
     char start_1[15] = {0};
     char checksum_g[15] = {0};
-    int field[10][10];
+    int field[ROWS][COLS];
     char checksum[15] = {0};
     int message_length = 0; // Länge der bisher empfangenen Nachricht
     int message_l_checksum = 0;
@@ -241,6 +244,9 @@ int main(void){
     int treffer_g = 0;
     int meine_shots = 0;
     int shots_g = 0;
+    int shot;
+    int row;
+    int col;
 
     char nachricht[1] = {0};
     char schuss_g[8] = {0};
@@ -360,18 +366,44 @@ int main(void){
 
                 // Sortiere die Spalten basierend auf der Anzahl der Treffer
                 sort_columns_by_hits(hit_counts, sorted_columns);
+                
               
                 if(schiessen){
                     if(treffer){
                         // Feld neben treffer finden
                         
+                        shot = col*10 + row + 1;
                         // überprüfen ob ich schon mal dahingeschossen habe
-                        //Nachricht senden Bsp. BOOM09\n
+                        if(isShotAlreadyTaken(shot, takenShots, meine_shots) || row >= 10){
+                            shot = col*10 + row - 2;
+                        }else{
+                            LOG("BOOM%d", shot);
+                        }
+                        if(isShotAlreadyTaken(shot, takenShots, meine_shots) || row <= 0){
+                            shot = col + 1 * 10 + row;
+                        }else{
+                            LOG("BOOM%d", shot);
+                        }
+                        if(isShotAlreadyTaken(shot, takenShots, meine_shots) || col >= 10){
+                            kein_treffer = true;
+                            treffer = false;
+                        }
+
                         meine_shots++;
                         treffer = false;
                     }
                     if(kein_treffer){
                         // erste Spalte bzw. spalte für spalte von sorted_columns zufällige Reihe
+                        for (int i = 0; i < COLS; ++i){
+                            int column= sorted_columns[i];
+
+                            for(int j = 0; j < ROWS; ++j){
+                                int row;
+
+
+
+                            }
+                        }
                         // überprüfen ob schon dorthin geschossen wurde
                         // Nachricht senden bsp. BOOM09\n
                         meine_shots++;
