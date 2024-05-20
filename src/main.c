@@ -153,6 +153,15 @@ void sort_columns_by_hits(int* hit_counts, int* sorted_columns) {
     }
 }
 
+bool isShotAlreadyTaken(int shot, int takenShots[], int meine_shots){
+    for (int i = 0; i < meine_shots; ++i){
+        if(takenShots[i] == shot){
+            return true;
+        }
+    }
+    return false;
+}
+
 // Function to add a small delay
 void delay(uint32_t milliseconds) {
     // Assuming a clock frequency of 48 MHz
@@ -196,15 +205,14 @@ int main(void){
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN; // Enable GPIOC clock
     GPIOC->MODER &= ~(GPIO_MODER_MODER13); // Clear MODER13 bits for input mode
 
-    uint8_t rxb = '\0';
+    //uint8_t rxb = '\0';
 
     // Variable to track the game state
     enum GameState {
         WAITING_FOR_START,
         WAITING_FOR_CHECKSUM,
         GENERATING_FIELD,
-        PLAYER_1,
-        PLAYER_2,
+        PLAYING,
         WAITING_FOR_START_MESSAGE,
     }; enum GameState GameState = WAITING_FOR_START;
 
@@ -217,12 +225,11 @@ int main(void){
     int message_length = 0; // Länge der bisher empfangenen Nachricht
     int message_l_checksum = 0;
     int message_l = 0;
+    int message_length_s = 0;
     // Array zur Speicherung der Anzahl der Treffer in den Spalten
     int hit_counts[BOARD_SIZE] = {0};
     // Array zur Speicherung der sortierten Spalten-Indizes
     int sorted_columns[BOARD_SIZE] = {0};
-    // Globale Variable zur Speicherung der Checksumme des Gegners
-    char opponent_checksum[15] = {0};
 
     bool schiessen = false;
     bool beschossen_werden = false;
@@ -236,6 +243,10 @@ int main(void){
     int shots_g = 0;
 
     char nachricht[1] = {0};
+    char schuss_g[8] = {0};
+
+    int takenShots[100] = {0};
+    
 
 
     for(;;){
@@ -293,7 +304,8 @@ int main(void){
                             message_l_checksum = 0; // Zurücksetzen des Zählers
                         if (spieler == 2){
                                 LOG("START11928041\n");
-                                GameState = PLAYER_2;
+                                beschossen_werden = true;
+                                GameState = PLAYING;
                                 break;
                             }
                         else if(spieler == 1){
@@ -330,16 +342,17 @@ int main(void){
                         //LOG("%s", start_1);
                         // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
                         if (received_ch == '\n') {
-                            
-                            GameState = PLAYER_1; // Spielzustand entsprechend setzen
+                            kein_treffer = true;
+                            schiessen = true;
                             message_length = 0;
+                            GameState = PLAYING; // Spielzustand entsprechend setzen
                             break;  
                         }
                     }
                 break;
 
 
-            case PLAYER_1:
+            case PLAYING:
                 // Game logic
                 
                 // Extrahiere die Anzahl der Treffer aus der Checksumme
@@ -351,6 +364,8 @@ int main(void){
                 if(schiessen){
                     if(treffer){
                         // Feld neben treffer finden
+                        int row = 
+                        int col =
                         // überprüfen ob ich schon mal dahingeschossen habe
                         //Nachricht senden Bsp. BOOM09\n
                         meine_shots++;
@@ -364,6 +379,7 @@ int main(void){
                         kein_treffer = false;
                     }
                     schuss_gesendet = true;
+                    schiessen = false;
                     
                 }
 
@@ -377,22 +393,44 @@ int main(void){
                             if(nachricht[0] == 'T'){
                                 meine_treffer++;
                                 treffer = true;
+                                message_l = 0;
                             }
                             if(nachricht[0] == 'W'){
                                 kein_treffer = true;
+                                message_l = 0;
                             }
                             beschossen_werden = true;
+                            schuss_gesendet = false;
                         }
                     }
                 }
 
                 if(beschossen_werden){
+                    if (USART2->ISR & USART_ISR_RXNE) {
+                     char received = USART2->RDR;
+                        schuss_g[message_length_s] = received;
+                        message_length_s++;
+                        // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
+                        if (received == '\n') {
+                            // Überprüfen ob Treffer oder Wasser
+                            int row = schuss_g[5];
+                            int col = schuss_g[4];
 
+                            if(field[row][col] > 0){
+                                treffer_g++;
+                                shots_g++;
+                                LOG('T\n');
+                            }
+                            if(field[row][col] == 0){
+                                shots_g++;
+                                LOG('W\n');
+                            }
+                            schiessen = true;
+                            beschossen_werden = false;
+
+                        }
+                    }
                 }
-
-
-                
-                
                 break;
 
             
@@ -404,4 +442,3 @@ int main(void){
     
         }
     }
-
