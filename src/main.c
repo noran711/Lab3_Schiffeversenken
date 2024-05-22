@@ -18,14 +18,14 @@
   #define LOG( msg... ) ;
 #endif
 
-#ifdef LOGGING
+/*#ifdef LOGGING
     #define GAME_LOG(msg...)(logging)
 #endif
 
 int logging(uint8_t* msg, size_t size){
     // klebt ein # vor jeden string
 }
-
+*/
 
 
 
@@ -41,6 +41,10 @@ int logging(uint8_t* msg, size_t size){
 // Maximal mögliche Länge der Nachricht (einschließlich Nullterminator)
 #define MAX_MESSAGE_LENGTH 15 
 
+#define TIMEOUT 100000
+
+
+
 
 // For supporting printf function we override the _write function to redirect the output to UART
 int _write( int handle, char* data, int size ) {
@@ -50,6 +54,59 @@ int _write( int handle, char* data, int size ) {
         USART2->TDR = *data++;
     }
     return size;
+}
+
+uint8_t timeout(uint32_t time){
+    static uint32_t cnt = 0;
+    cnt++;
+    if (cnt > time){
+        return 1;
+    }
+    return 0;
+}
+
+void error(void){
+    for(;;){}
+}
+
+void ADC_Init(void) {
+    // Enable the GPIOA and ADC clock
+    RCC->AHBENR  |= RCC_AHBENR_GPIOAEN; 
+    RCC->APB2ENR |= RCC_APB2ENR_ADCEN; 
+
+    // Set the GPIOA pin 0 to analog mode
+    GPIOA->MODER |= GPIO_MODER_MODER0;  
+
+    // Set the ADC to continuous mode and select scan direction
+    ADC1->CHSELR |= ADC_CHSELR_CHSEL0 ; 
+    ADC1->CFGR1  |= ADC_CFGR1_CONT | ADC_CFGR1_SCANDIR;
+    // Set Sample time 
+    ADC1->SMPR   |= ADC_SMPR_SMP_0;
+
+    // If ADC is not ready set the ADC ready bit
+    if ((ADC1->ISR & ADC_ISR_ADRDY) != 0){   
+        ADC1->ISR |= ADC_ISR_ADRDY; 
+    }
+    // Enable the ADC
+    ADC1->CR |= ADC_CR_ADEN; 
+    // Wait for the ADC to be ready
+    while ((ADC1->ISR & ADC_ISR_ADRDY) == 0){
+        if (timeout(TIMEOUT)){
+            error();
+        }
+    }
+
+    // Start the ADC
+    ADC1->CR |= ADC_CR_ADSTART;
+}
+
+uint16_t ADC_Read(void) {
+    while ((ADC1->ISR & ADC_ISR_EOC) == 0) {
+        if (timeout(TIMEOUT)){
+            error();
+        }
+    }
+    return ADC1->DR;
 }
 
 
@@ -69,9 +126,9 @@ void generate_field(int field[10][10]) {
         int ship_size = ships[s];
         // Wähle zufällige Startposition und Orientierung für das Schiff
 
-        int row = rand() % 10;
-        int col = rand() % 10;
-        int horizontal = rand() % 2; // 0 für horizontal, 1 für vertikal
+        int row = ADC_Read() % 10;
+        int col = ADC_Read() % 10;
+        int horizontal = ADC_Read() % 2; // 0 für horizontal, 1 für vertikal
         // Überprüfe, ob das Schiff an der gewählten Position platziert werden kann
         int valid_position = 1;
         if (horizontal) {
@@ -194,6 +251,8 @@ void delay(uint32_t milliseconds) {
 int main(void){
     // Configure the system clock to 48MHz
     EPL_SystemClock_Config();
+
+    ADC_Init();
 
     GPIOC->MODER &= ~GPIO_MODER_MODER13;
     GPIOC->MODER |= GPIO_MODER_MODER13_0;
@@ -544,6 +603,8 @@ int main(void){
                     LOG("%s", sf_message);
                    
                 }
+                
+                GameState = WAITING_FOR_START;
                 break;
 
             
