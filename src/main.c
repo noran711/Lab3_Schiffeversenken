@@ -9,12 +9,25 @@
 
 #define DEBUG
 
+#define LOGGING
+
 // This is a simple macro to print debug messages if DEBUG is defined
 #ifdef DEBUG
   #define LOG( msg... ) printf( msg );
 #else
   #define LOG( msg... ) ;
 #endif
+
+#ifdef LOGGING
+    #define GAME_LOG(msg...)(logging)
+#endif
+
+int logging(uint8_t* msg, size_t size){
+    // klebt ein # vor jeden string
+}
+
+
+
 
 // Select the Baudrate for the UART
 #define BAUDRATE 9600
@@ -166,6 +179,8 @@ bool isShotAlreadyTaken(int shot, int takenShots[], int meine_shots){
     return false;
 }
 
+
+
 // Function to add a small delay
 void delay(uint32_t milliseconds) {
     // Assuming a clock frequency of 48 MHz
@@ -218,6 +233,7 @@ int main(void){
         GENERATING_FIELD,
         PLAYING,
         WAITING_FOR_START_MESSAGE,
+        SEND_SF_MESSAGE,
     }; enum GameState GameState = WAITING_FOR_START;
 
     int spieler;
@@ -230,6 +246,7 @@ int main(void){
     int message_l_checksum = 0;
     int message_l = 0;
     int message_length_s = 0;
+    int message_sf_length = 0;
     // Array zur Speicherung der Anzahl der Treffer in den Spalten
     int hit_counts[BOARD_SIZE] = {0};
     // Array zur Speicherung der sortierten Spalten-Indizes
@@ -249,12 +266,19 @@ int main(void){
     int row;
     int col;
 
-    char nachricht[2] = {0};
-    char schuss_g[8] = {0};
+    char nachricht[16] = {0};
+    char schuss_g[16] = {0};
+    char message[16] = {0};
 
     int takenShots[100] = {0};
     int zaehler = 0;
-    
+
+    char sf_g[16] = {0};
+
+    // Variablen zum Speichern der SF-Nachrichten
+    char sf_messages[10][16];
+    int sf_message_count = 0;
+        
 
 
     for(;;){
@@ -362,126 +386,170 @@ int main(void){
 
 
             case PLAYING:
-    // Game logic
+                // Game logic
 
-    // Extrahiere die Anzahl der Treffer aus der Checksumme
-    extract_hit_counts(checksum_g, hit_counts);
+                // Extrahiere die Anzahl der Treffer aus der Checksumme
+                extract_hit_counts(checksum_g, hit_counts);
 
-    // Sortiere die Spalten basierend auf der Anzahl der Treffer
-    sort_columns_by_hits(hit_counts, sorted_columns);
+                // Sortiere die Spalten basierend auf der Anzahl der Treffer
+                sort_columns_by_hits(hit_counts, sorted_columns);
 
-    while (meine_treffer < 30 && treffer_g < 30 && meine_shots < 100 && shots_g < 100) {
-        if (schiessen) {
-            if (treffer) {
-                // Finde benachbartes Feld
-                int shot_found = 0;
-                for (int dir = 0; dir < 4 && !shot_found; ++dir) {
-                    int new_row = row, new_col = col;
-                    switch (dir) {
-                        case 0: new_row = row + 1; break;
-                        case 1: new_row = row - 1; break;
-                        case 2: new_col = col + 1; break;
-                        case 3: new_col = col - 1; break;
+                while (meine_treffer < 30 && treffer_g < 30 && meine_shots <= 100 && shots_g <= 100) {
+                    if (schiessen) {
+                        if (treffer) {
+                            // Finde benachbartes Feld
+                            int shot_found = 0;
+                            for (int dir = 0; dir < 4 && !shot_found; ++dir) {
+                                int new_row = row, new_col = col;
+                                switch (dir) {
+                                    case 0: new_row = row + 1; break;
+                                    case 1: new_row = row - 1; break;
+                                    case 2: new_col = col + 1; break;
+                                    case 3: new_col = col - 1; break;
+                                }
+                                shot = new_col * 10 + new_row;
+                                if (new_row >= 0 && new_row < 10 && new_col >= 0 && new_col < 10 &&
+                                    !isShotAlreadyTaken(shot, takenShots, meine_shots)) {
+                                    LOG("BOOM%d%d\n", new_col, new_row);
+                                    takenShots[meine_shots++] = shot;
+                                    shot_found = 1;
+                                }
+                            }
+                            if (!shot_found) {
+                                kein_treffer = true;
+                                treffer = false;
+                            } else {
+                                treffer = false;
+                            }
+                            schuss_gesendet = true;
+                            schiessen = false;
+                        }
+                        if (kein_treffer) {
+                            // Suche erste Spalte bzw. spalte für spalte von sorted_columns zufällige Reihe
+                            bool treffer_gefunden = false;
+                            for (int i = 0; i < COLS && !treffer_gefunden; ++i) {
+                                col = sorted_columns[i];
+                                for (int j = 0; j < ROWS; ++j) {
+                                    shot = col * 10 + j;
+                                    if (!isShotAlreadyTaken(shot, takenShots, meine_shots)) {
+                                        LOG("BOOM%d%d\n", col, j);
+                                        takenShots[meine_shots++] = shot;
+                                        kein_treffer = false;
+                                        treffer_gefunden = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            schuss_gesendet = true;
+                            schiessen = false;
+                        }
                     }
-                    shot = new_col * 10 + new_row;
-                    if (new_row >= 0 && new_row < 10 && new_col >= 0 && new_col < 10 &&
-                        !isShotAlreadyTaken(shot, takenShots, meine_shots)) {
-                        LOG("BOOM%d%d\n", new_col, new_row);
-                        takenShots[meine_shots++] = shot;
-                        shot_found = 1;
+
+                    if (schuss_gesendet) {
+                        if (USART2->ISR & USART_ISR_RXNE) {
+                            char received_m = USART2->RDR;
+                            nachricht[message_l] = received_m;
+                            message_l++;
+
+                            // Überprüfen, ob das letzte empfangene Zeichen '\n' ist
+                            if (received_m == '\n') {
+                                nachricht[message_l] = '\0'; // Null-Terminierung des Strings
+                                char first_char = nachricht[0];
+                                char second_char = nachricht[1];
+
+                                // Überprüfen, ob das erste Zeichen ein 'T' oder ein 'W' ist
+                                if (first_char == 'T') {
+                                    meine_treffer++;
+                                    treffer = true;
+                                } else if (first_char == 'W') {
+                                    kein_treffer = true;
+                                } else if (first_char == 'S' && second_char == 'F') {
+                                    GameState = SEND_SF_MESSAGE;
+                                    break;
+                                }
+
+                                message_l = 0;
+                                memset(nachricht, 0, sizeof(nachricht));
+                                schiessen = false;
+                                beschossen_werden = true;
+                                schuss_gesendet = false;
+                            }
+                        }
                     }
-                }
-                if (!shot_found) {
-                    kein_treffer = true;
-                    treffer = false;
-                } else {
-                    treffer = false;
-                }
-                schuss_gesendet = true;
-                schiessen = false;
-            }
-            if (kein_treffer) {
-                // Suche erste Spalte bzw. spalte für spalte von sorted_columns zufällige Reihe
-                bool treffer_gefunden = false;
-                for (int i = 0; i < COLS && !treffer_gefunden; ++i) {
-                    col = sorted_columns[i];
-                    for (int j = 0; j < ROWS; ++j) {
-                        shot = col * 10 + j;
-                        if (!isShotAlreadyTaken(shot, takenShots, meine_shots)) {
-                            LOG("BOOM%d%d\n", col, j);
-                            takenShots[meine_shots++] = shot;
-                            kein_treffer = false;
-                            treffer_gefunden = true;
-                            break;
+
+                    if (beschossen_werden) {
+                        if (USART2->ISR & USART_ISR_RXNE) {
+                            char received = USART2->RDR;
+
+                            schuss_g[message_length_s] = received;
+                            message_length_s++;
+
+                            // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
+                            if (received == '\n') {
+                                schuss_g[message_length_s] = '\0';  // Null-Terminierung des Strings
+
+                                // Extrahiere die Zeilen- und Spalteninformationen aus schuss_g
+                                int r = schuss_g[5] - '0';
+                                int c = schuss_g[4] - '0';
+                                char first_c = schuss_g[0];
+                                char second_c = schuss_g[1];
+
+                                if (first_c == 'S' && second_c == 'F') {
+                                    GameState = SEND_SF_MESSAGE;
+                                    break;
+                                } else {
+                                    if (field[r][c] > 0) {
+                                        treffer_g++;
+                                        if (treffer_g == 30) {
+                                            GameState = SEND_SF_MESSAGE;
+                                            break;
+                                        }
+                                        LOG("T\n");
+                                    } else {
+                                        LOG("W\n");
+                                    }
+                                    shots_g++;
+                                }
+
+                                message_length_s = 0;  // Setze message_length_s für die nächste Nachricht zurück
+                                memset(schuss_g, 0, sizeof(schuss_g));
+                                schiessen = true;
+                                beschossen_werden = false;
+                            }
                         }
                     }
                 }
-                schuss_gesendet = true;
-                schiessen = false;
-            }
-        }
 
-        if (schuss_gesendet) {
-            if (USART2->ISR & USART_ISR_RXNE) {
-                char received_m = USART2->RDR;
-                nachricht[message_l] = received_m;
-                message_l++;
+                    
+                
+                break;
 
-                // Überprüfen, ob das letzte empfangene Zeichen '\n' ist
-                if (received_m == '\n') {
-                    nachricht[message_l] = '\0'; // Null-Terminierung des Strings
-                    char first_char = nachricht[0];
-
-                    // Überprüfen, ob das erste Zeichen ein 'T' oder ein 'W' ist
-                    if (first_char == 'T') {
-                        meine_treffer++;
-                        treffer = true;
-                    } else if (first_char == 'W') {
-                        kein_treffer = true;
+            case SEND_SF_MESSAGE:
+                for (int col = 0; col < COLS; ++col) {
+                    // Construct the SF message for each column
+                    char sf_message[15];
+                    sf_message[0] = 'S';
+                    sf_message[1] = 'F';
+                    sf_message[2] = (char)(col + '0'); // Convert column number to char
+                    sf_message[3] = 'D';
+                    
+                    // Fill in the ship positions for each row in the current column
+                    for (int row = 0; row < ROWS; ++row) {
+                        sf_message[row + 4] = (char)(field[row][col] + '0'); // Convert ship size to char
                     }
+                    
+                    sf_message[14] = '\n';
+                    sf_message[15] = '\0'; // Null-terminate the string
 
-                    message_l = 0;
-                    memset(nachricht, 0, sizeof(nachricht));
-                    schiessen = false;
-                    beschossen_werden = true;
-                    schuss_gesendet = false;
+                    LOG("%s", sf_message);
+                   
                 }
-            }
-        }
+                break;
 
-        if (beschossen_werden) {
-            if (USART2->ISR & USART_ISR_RXNE) {
-                char received = USART2->RDR;
+            
 
-                schuss_g[message_length_s] = received;
-                message_length_s++;
 
-                // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
-                if (received == '\n') {
-                    schuss_g[message_length_s] = '\0';  // Null-Terminierung des Strings
 
-                    // Extrahiere die Zeilen- und Spalteninformationen aus schuss_g
-                    int r = schuss_g[5] - '0';
-                    int c = schuss_g[4] - '0';
-
-                    if (field[r][c] > 0) {
-                        treffer_g++;
-                        LOG("T\n");
-                    } else {
-                        LOG("W\n");
-                    }
-                    shots_g++;
-
-                    message_length_s = 0;  // Setze message_length_s für die nächste Nachricht zurück
-                    memset(schuss_g, 0, sizeof(schuss_g));
-                    schiessen = true;
-                    beschossen_werden = false;
-                }
-            }
-        }
-    }
-    
-    break;
 }
     }
 }
