@@ -739,8 +739,8 @@ def main(sio, is_player1, single_game, play_level, official_result):
                     if rd['R'] != 'HM':
                         st = MainStates.UNEXPECTED
                         continue
-                    fire_state.update(coord, rd['hm'] == 'H')
-                    if rd['hm'] == 'H':
+                    fire_state.update(coord, rd['hm'] == 'T')
+                    if rd['hm'] == 'T':
                         logging.info("we hit at {},{}".format(*coord))
                     else:
                         logging.info("we miss at {},{}".format(*coord))
