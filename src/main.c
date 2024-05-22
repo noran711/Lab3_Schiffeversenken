@@ -13,9 +13,9 @@
 
 // This is a simple macro to print debug messages if DEBUG is defined
 #ifdef DEBUG
-  #define LOG( msg... ) printf( msg );
+  #define GAME_LOG( msg... ) printf( msg );
 #else
-  #define LOG( msg... ) ;
+  #define GAME_LOG( msg... ) ;
 #endif
 
 /*#ifdef LOGGING
@@ -358,7 +358,7 @@ int main(void){
                 // Überprüfe den Startknopf
                 if ((GPIOC->IDR & GPIO_IDR_13) == 0) {
                     // Startnachricht senden und Spielzustand ändern
-                    LOG("START11928041\n");
+                    GAME_LOG("START11928041\n");
                     spieler = 1;
                     GameState = WAITING_FOR_CHECKSUM;
                     break;
@@ -394,7 +394,7 @@ int main(void){
                             //LOG("%s", checksum_g); // Ausgabe der gespeicherten Checksumme
                             message_l_checksum = 0; // Zurücksetzen des Zählers
                         if (spieler == 2){
-                                LOG("START11928041\n");
+                                GAME_LOG("START11928041\n");
                                 kein_treffer = true;
                                 beschossen_werden = true;
                                 GameState = PLAYING;
@@ -414,7 +414,7 @@ int main(void){
                 //Calculate checksum
                 calculate_checksum(field, checksum);
                 //send checksum
-                LOG("%s", checksum);
+                GAME_LOG("%s", checksum);
                 if(spieler == 1){
                     GameState = WAITING_FOR_START_MESSAGE;
                     break;
@@ -469,7 +469,7 @@ int main(void){
                                 shot = new_col * 10 + new_row;
                                 if (new_row >= 0 && new_row < 10 && new_col >= 0 && new_col < 10 &&
                                     !isShotAlreadyTaken(shot, takenShots, meine_shots)) {
-                                    LOG("BOOM%d%d\n", new_col, new_row);
+                                    GAME_LOG("BOOM%d%d\n", new_col, new_row);
                                     takenShots[meine_shots++] = shot;
                                     shot_found = 1;
                                 }
@@ -491,7 +491,7 @@ int main(void){
                                 for (int j = 0; j < ROWS; ++j) {
                                     shot = col * 10 + j;
                                     if (!isShotAlreadyTaken(shot, takenShots, meine_shots)) {
-                                        LOG("BOOM%d%d\n", col, j);
+                                        GAME_LOG("BOOM%d%d\n", col, j);
                                         takenShots[meine_shots++] = shot;
                                         kein_treffer = false;
                                         treffer_gefunden = true;
@@ -563,9 +563,9 @@ int main(void){
                                             GameState = SEND_SF_MESSAGE;
                                             break;
                                         }
-                                        LOG("T\n");
+                                        GAME_LOG("T\n");
                                     } else {
-                                        LOG("W\n");
+                                        GAME_LOG("W\n");
                                     }
                                     shots_g++;
                                 }
@@ -600,7 +600,7 @@ int main(void){
                     sf_message[14] = '\n';
                     sf_message[15] = '\0'; // Null-terminate the string
 
-                    LOG("%s", sf_message);
+                    GAME_LOG("%s", sf_message);
                    
                 }
                 
