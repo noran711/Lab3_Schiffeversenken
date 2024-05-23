@@ -387,8 +387,9 @@ int main(void){
                 // Check the start button
                 if ((GPIOC->IDR & GPIO_IDR_13) == 0) {
                     // Send start message and change game state
-                    GAME_LOG("START11928041\n");
                     GAME_LOG("#button pressed\n");
+                    GAME_LOG("START11928041\n");
+                    
                     spieler = 1;
                     GameState = WAITING_FOR_CHECKSUM;
                     break;
