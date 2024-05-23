@@ -433,6 +433,7 @@ def io_read(sio):
         # we handle comments here
         if l[0] == '#':
             logging.info("they say: {}".format(l[1:-1]))
+            l = ""  # Reset line variable after handling comment
             continue
         else:
             break

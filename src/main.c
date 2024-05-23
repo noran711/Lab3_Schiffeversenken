@@ -7,6 +7,15 @@
 #include <stdbool.h>
 #include <string.h>
 
+// debugmessages !
+// spielfeldnachrichten einlesen und schauen ob schummeln
+// überprüfen ob 30 treffer auch 30 verschiedene felder sind !
+// schummeln !
+// (intelligente schussstrategie erweitern)
+
+
+
+
 #define DEBUG
 
 #define LOGGING
@@ -18,14 +27,35 @@
   #define GAME_LOG( msg... ) ;
 #endif
 
-/*#ifdef LOGGING
-    #define GAME_LOG(msg...)(logging)
+#ifdef LOGGING
+  #define LOG( msg... ) { \
+      char buffer[256]; \
+      int len = snprintf(buffer, sizeof(buffer), msg); \
+      logging((uint8_t*)buffer, len); \
+  }
+#else
+  #define LOG( msg... ) ;
 #endif
 
-int logging(uint8_t* msg, size_t size){
-    // klebt ein # vor jeden string
+int logging(uint8_t* msg, size_t size) {
+    // Buffer for the new message with an additional character for '#'
+    uint8_t new_msg[size + 2]; // +1 for '#' and +1 for null terminator
+
+    // Add '#' at the beginning
+    new_msg[0] = '#';
+
+    // Copy the original message after it
+    memcpy(new_msg + 1, msg, size);
+
+    // Null-terminate the new message
+    new_msg[size + 1] = '\0';
+
+    // Print the new message (can be modified to store it elsewhere)
+    printf("%s\n", new_msg);
+
+    return 0; // Success
 }
-*/
+
 
 
 
@@ -352,111 +382,119 @@ int main(void){
         //LOG("[DEBUG-LOG]: %d\r\n", rxb );
         //GameState = WAITING_FOR_START;
         
-        switch(GameState){
-
+        switch(GameState) {
             case WAITING_FOR_START:
-                // Überprüfe den Startknopf
+                // Check the start button
                 if ((GPIOC->IDR & GPIO_IDR_13) == 0) {
-                    // Startnachricht senden und Spielzustand ändern
+                    // Send start message and change game state
                     GAME_LOG("START11928041\n");
+                    GAME_LOG("#button pressed\n");
                     spieler = 1;
                     GameState = WAITING_FOR_CHECKSUM;
                     break;
                 } 
                 if (USART2->ISR & USART_ISR_RXNE) {
-                     char received_char = USART2->RDR;
-                        start[message_length] = received_char;
-                        message_length++;
-                        
-                        // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
-                        if (received_char == '\n') {
-                            spieler = 2; // Spieler auf 2 setzen
-                            GameState = GENERATING_FIELD; // Spielzustand entsprechend setzen
-                            message_length = 0;
-                            break;
-                            
-                        }
+                    char received_char = USART2->RDR;
+                    start[message_length] = received_char;
+                    message_length++;
+                                
+                    // Check if the last received character is '\n'
+                    if (received_char == '\n') {
+                        GAME_LOG("#Received: %s", start);
+                        spieler = 2; // Set player to 2
+                        GameState = GENERATING_FIELD; // Set game state accordingly
+                        message_length = 0;
+                        break;
                     }
+                }
                 break; 
-
-                            
-            
 
             case WAITING_FOR_CHECKSUM:
                 // Check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
-                        char received_c = USART2->RDR;
-                        checksum_g[message_l_checksum] = received_c;
-                        message_l_checksum++;
-                        // Check for checksum message
-                        if (received_c == '\n') {
-                            checksum_g[message_l_checksum] = '\0'; // Nullterminator hinzufügen
-                            //LOG("%s", checksum_g); // Ausgabe der gespeicherten Checksumme
-                            message_l_checksum = 0; // Zurücksetzen des Zählers
-                        if (spieler == 2){
-                                GAME_LOG("START11928041\n");
-                                kein_treffer = true;
-                                beschossen_werden = true;
-                                GameState = PLAYING;
-                                break;
-                            }
-                        else if(spieler == 1){
-                        GameState = GENERATING_FIELD;
-                        break;
+                    char received_c = USART2->RDR;
+                    checksum_g[message_l_checksum] = received_c;
+                    message_l_checksum++;
+                    // Check for checksum message
+                    if (received_c == '\n') {
+                        checksum_g[message_l_checksum] = '\0'; // Add null terminator
+                        GAME_LOG("#Received checksum: %s", checksum_g);
+                        message_l_checksum = 0; // Reset the counter
+                        if (spieler == 2) {
+                            GAME_LOG("START11928041\n");
+                            
+                            kein_treffer = true;
+                            beschossen_werden = true;
+                            GameState = PLAYING;
+                            break;
+                        } else if (spieler == 1) {
+                            GameState = GENERATING_FIELD;
+                            break;
                         }
-                }
+                    }
                 }
                 break;
 
             case GENERATING_FIELD:
                 // Generate the game board
                 generate_field(field);
-                //Calculate checksum
+                //LOG("Field generated");
+
+                // Calculate checksum
                 calculate_checksum(field, checksum);
-                //send checksum
+                GAME_LOG("#Checksum calculated: %s", checksum);
+
+                
+                // Send checksum
                 GAME_LOG("%s", checksum);
-                if(spieler == 1){
+                
+
+                if (spieler == 1) {
+                    
                     GameState = WAITING_FOR_START_MESSAGE;
                     break;
                 }
-                if(spieler == 2){
+                if (spieler == 2) {
+                
                     GameState = WAITING_FOR_CHECKSUM;
                     break;
                 }
                 break;
 
             case WAITING_FOR_START_MESSAGE:
-                //check for incoming messages
+                // Check for incoming messages
                 if (USART2->ISR & USART_ISR_RXNE) {
-                     char received_ch = USART2->RDR;
-                        start_1[message_length] = received_ch;
-                        message_length++;
-                        //LOG("%s", start_1);
-                        // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
-                        if (received_ch == '\n') {
-                            kein_treffer = true;
-                            schiessen = true;
-                            message_length = 0;
-                            GameState = PLAYING; // Spielzustand entsprechend setzen
-                            break;  
-                        }
+                    char received_ch = USART2->RDR;
+                    start_1[message_length] = received_ch;
+                    message_length++;
+                    // Check if the last received character is '\n'
+                    if (received_ch == '\n') {
+                        GAME_LOG("#Received: %s", start_1);
+                        kein_treffer = true;
+                        schiessen = true;
+                        message_length = 0;
+                        GameState = PLAYING; // Set game state accordingly
+                        break;  
                     }
+                }
                 break;
-
 
             case PLAYING:
                 // Game logic
 
-                // Extrahiere die Anzahl der Treffer aus der Checksumme
+                // Extract hit counts from the checksum
                 extract_hit_counts(checksum_g, hit_counts);
+               
 
-                // Sortiere die Spalten basierend auf der Anzahl der Treffer
+                // Sort columns based on hit counts
                 sort_columns_by_hits(hit_counts, sorted_columns);
+                
+                
 
                 while (meine_treffer < 30 && treffer_g < 30 && meine_shots <= 100 && shots_g <= 100) {
                     if (schiessen) {
                         if (treffer) {
-                            // Finde benachbartes Feld
+                            // Find adjacent field
                             int shot_found = 0;
                             for (int dir = 0; dir < 4 && !shot_found; ++dir) {
                                 int new_row = row, new_col = col;
@@ -469,7 +507,9 @@ int main(void){
                                 shot = new_col * 10 + new_row;
                                 if (new_row >= 0 && new_row < 10 && new_col >= 0 && new_col < 10 &&
                                     !isShotAlreadyTaken(shot, takenShots, meine_shots)) {
+                                    GAME_LOG("#Shot taken at %d,%d\n", new_col, new_row);
                                     GAME_LOG("BOOM%d%d\n", new_col, new_row);
+                                    
                                     takenShots[meine_shots++] = shot;
                                     shot_found = 1;
                                 }
@@ -484,14 +524,16 @@ int main(void){
                             schiessen = false;
                         }
                         if (kein_treffer) {
-                            // Suche erste Spalte bzw. spalte für spalte von sorted_columns zufällige Reihe
+                            // Search first column or column by column from sorted_columns for random row
                             bool treffer_gefunden = false;
                             for (int i = 0; i < COLS && !treffer_gefunden; ++i) {
                                 col = sorted_columns[i];
                                 for (int j = 0; j < ROWS; ++j) {
                                     shot = col * 10 + j;
                                     if (!isShotAlreadyTaken(shot, takenShots, meine_shots)) {
+                                        GAME_LOG("#Shot taken at %d,%d\n", col, j);
                                         GAME_LOG("BOOM%d%d\n", col, j);
+                                        
                                         takenShots[meine_shots++] = shot;
                                         kein_treffer = false;
                                         treffer_gefunden = true;
@@ -510,19 +552,22 @@ int main(void){
                             nachricht[message_l] = received_m;
                             message_l++;
 
-                            // Überprüfen, ob das letzte empfangene Zeichen '\n' ist
+                            // Check if the last received character is '\n'
                             if (received_m == '\n') {
-                                nachricht[message_l] = '\0'; // Null-Terminierung des Strings
+                                nachricht[message_l] = '\0'; // Null-terminate the string
                                 char first_char = nachricht[0];
                                 char second_char = nachricht[1];
 
-                                // Überprüfen, ob das erste Zeichen ein 'T' oder ein 'W' ist
+                                // Check if the first character is 'T' or 'W'
                                 if (first_char == 'T') {
                                     meine_treffer++;
+                                    
                                     treffer = true;
                                 } else if (first_char == 'W') {
+                                    
                                     kein_treffer = true;
                                 } else if (first_char == 'S' && second_char == 'F') {
+                                    GAME_LOG("#SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
                                 }
@@ -543,34 +588,47 @@ int main(void){
                             schuss_g[message_length_s] = received;
                             message_length_s++;
 
-                            // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
+                            // Check if the last received character is '\n'
                             if (received == '\n') {
-                                schuss_g[message_length_s] = '\0';  // Null-Terminierung des Strings
+                                schuss_g[message_length_s] = '\0';  // Null-terminate the string
 
-                                // Extrahiere die Zeilen- und Spalteninformationen aus schuss_g
+                                // Extract row and column information from schuss_g
                                 int r = schuss_g[5] - '0';
                                 int c = schuss_g[4] - '0';
                                 char first_c = schuss_g[0];
                                 char second_c = schuss_g[1];
 
+                                if(treffer){
+                                    GAME_LOG("#We hit at: %d\n", shot);
+                                }
+                                if(kein_treffer){
+                                    GAME_LOG("#We miss at: %d\n", shot);
+                                }
+
                                 if (first_c == 'S' && second_c == 'F') {
+                                    GAME_LOG("#SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
                                 } else {
                                     if (field[r][c] > 0) {
                                         treffer_g++;
                                         if (treffer_g == 30) {
+                                            GAME_LOG("#30 hits received, We lost!\n");
                                             GameState = SEND_SF_MESSAGE;
                                             break;
                                         }
+                                        GAME_LOG("#Hit received at %d,%d\n", c, r);
                                         GAME_LOG("T\n");
+                                        
                                     } else {
+                                        GAME_LOG("#Miss received at %d, %d\n", c, r);
                                         GAME_LOG("W\n");
+                                        
                                     }
                                     shots_g++;
                                 }
 
-                                message_length_s = 0;  // Setze message_length_s für die nächste Nachricht zurück
+                                message_length_s = 0;  // Reset message_length_s for the next message
                                 memset(schuss_g, 0, sizeof(schuss_g));
                                 schiessen = true;
                                 beschossen_werden = false;
@@ -578,9 +636,6 @@ int main(void){
                         }
                     }
                 }
-
-                    
-                
                 break;
 
             case SEND_SF_MESSAGE:
@@ -601,9 +656,10 @@ int main(void){
                     sf_message[15] = '\0'; // Null-terminate the string
 
                     GAME_LOG("%s", sf_message);
-                   
+                    
                 }
                 
+                GAME_LOG("#Game end\n");
                 GameState = WAITING_FOR_START;
                 break;
 
