@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-// debugmessages !
+
 // spielfeldnachrichten einlesen und schauen ob schummeln
 // überprüfen ob 30 treffer auch 30 verschiedene felder sind !
 // schummeln !
@@ -51,7 +51,7 @@ int logging(uint8_t* msg, size_t size) {
     new_msg[size + 1] = '\0';
 
     // Print the new message (can be modified to store it elsewhere)
-    printf("%s\n", new_msg);
+    printf("%s", new_msg);
 
     return 0; // Success
 }
@@ -387,7 +387,7 @@ int main(void){
                 // Check the start button
                 if ((GPIOC->IDR & GPIO_IDR_13) == 0) {
                     // Send start message and change game state
-                    GAME_LOG("#button pressed\n");
+                    LOG("button pressed\n");
                     GAME_LOG("START11928041\n");
                     
                     spieler = 1;
@@ -401,7 +401,7 @@ int main(void){
                                 
                     // Check if the last received character is '\n'
                     if (received_char == '\n') {
-                        GAME_LOG("#Received: %s", start);
+                        LOG("Received: %s", start);
                         spieler = 2; // Set player to 2
                         GameState = GENERATING_FIELD; // Set game state accordingly
                         message_length = 0;
@@ -419,7 +419,7 @@ int main(void){
                     // Check for checksum message
                     if (received_c == '\n') {
                         checksum_g[message_l_checksum] = '\0'; // Add null terminator
-                        GAME_LOG("#Received checksum: %s", checksum_g);
+                        LOG("Received checksum: %s", checksum_g);
                         message_l_checksum = 0; // Reset the counter
                         if (spieler == 2) {
                             GAME_LOG("START11928041\n");
@@ -443,7 +443,7 @@ int main(void){
 
                 // Calculate checksum
                 calculate_checksum(field, checksum);
-                GAME_LOG("#Checksum calculated: %s", checksum);
+                LOG("Checksum calculated: %s", checksum);
 
                 
                 // Send checksum
@@ -470,7 +470,7 @@ int main(void){
                     message_length++;
                     // Check if the last received character is '\n'
                     if (received_ch == '\n') {
-                        GAME_LOG("#Received: %s", start_1);
+                        LOG("Received: %s", start_1);
                         kein_treffer = true;
                         schiessen = true;
                         message_length = 0;
@@ -508,7 +508,7 @@ int main(void){
                                 shot = new_col * 10 + new_row;
                                 if (new_row >= 0 && new_row < 10 && new_col >= 0 && new_col < 10 &&
                                     !isShotAlreadyTaken(shot, takenShots, meine_shots)) {
-                                    GAME_LOG("#Shot taken at %d,%d\n", new_col, new_row);
+                                    LOG("Shot taken at %d,%d\n", new_col, new_row);
                                     GAME_LOG("BOOM%d%d\n", new_col, new_row);
                                     
                                     takenShots[meine_shots++] = shot;
@@ -532,7 +532,7 @@ int main(void){
                                 for (int j = 0; j < ROWS; ++j) {
                                     shot = col * 10 + j;
                                     if (!isShotAlreadyTaken(shot, takenShots, meine_shots)) {
-                                        GAME_LOG("#Shot taken at %d,%d\n", col, j);
+                                        LOG("Shot taken at %d,%d\n", col, j);
                                         GAME_LOG("BOOM%d%d\n", col, j);
                                         
                                         takenShots[meine_shots++] = shot;
@@ -568,7 +568,7 @@ int main(void){
                                     
                                     kein_treffer = true;
                                 } else if (first_char == 'S' && second_char == 'F') {
-                                    GAME_LOG("#SF message received, We won!\n");
+                                    LOG("SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
                                 }
@@ -600,29 +600,29 @@ int main(void){
                                 char second_c = schuss_g[1];
 
                                 if(treffer){
-                                    GAME_LOG("#We hit at: %d\n", shot);
+                                    LOG("We hit at: %d\n", shot);
                                 }
                                 if(kein_treffer){
-                                    GAME_LOG("#We miss at: %d\n", shot);
+                                    LOG("We miss at: %d\n", shot);
                                 }
 
                                 if (first_c == 'S' && second_c == 'F') {
-                                    GAME_LOG("#SF message received, We won!\n");
+                                    LOG("SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
                                 } else {
                                     if (field[r][c] > 0) {
                                         treffer_g++;
                                         if (treffer_g == 30) {
-                                            GAME_LOG("#30 hits received, We lost!\n");
+                                            LOG("30 hits received, We lost!\n");
                                             GameState = SEND_SF_MESSAGE;
                                             break;
                                         }
-                                        GAME_LOG("#Hit received at %d,%d\n", c, r);
+                                        LOG("Hit received at %d,%d\n", c, r);
                                         GAME_LOG("T\n");
                                         
                                     } else {
-                                        GAME_LOG("#Miss received at %d, %d\n", c, r);
+                                        LOG("Miss received at %d, %d\n", c, r);
                                         GAME_LOG("W\n");
                                         
                                     }
@@ -660,7 +660,7 @@ int main(void){
                     
                 }
                 
-                GAME_LOG("#Game end\n");
+                LOG("Game end\n");
                 GameState = WAITING_FOR_START;
                 break;
 
