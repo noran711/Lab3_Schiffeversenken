@@ -8,6 +8,7 @@
 #include <string.h>
 
 
+
 // spielfeldnachrichten einlesen und schauen ob schummeln
 // überprüfen ob 30 treffer auch 30 verschiedene felder sind !
 // schummeln !
@@ -268,6 +269,18 @@ bool isShotAlreadyTaken(int shot, int takenShots[], int meine_shots){
 
 
 
+// Function to check if a column has only three, two or one free spaces left
+int check_column_free_spaces(int field[ROWS][COLS], int c) {
+    int free_spaces = 0;
+    for (int i = 0; i < ROWS; i++) {
+        if (field[i][c] == 0) {
+            free_spaces++;
+        }
+    }
+    return free_spaces;
+}
+
+
 // Function to add a small delay
 void delay(uint32_t milliseconds) {
     // Assuming a clock frequency of 48 MHz
@@ -276,6 +289,15 @@ void delay(uint32_t milliseconds) {
     }
 }
 
+void GPIO_init(void) {
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+
+    GPIOA->MODER |= (GPIO_MODER_MODER5_0 | GPIO_MODER_MODER8_0 | GPIO_MODER_MODER9_0 | GPIO_MODER_MODER10_0);
+    GPIOA->OTYPER &= ~(GPIO_OTYPER_OT_5 | GPIO_OTYPER_OT_8 | GPIO_OTYPER_OT_9 | GPIO_OTYPER_OT_10);
+    GPIOA->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEEDR5 | GPIO_OSPEEDR_OSPEEDR8 | GPIO_OSPEEDR_OSPEEDR9 | GPIO_OSPEEDR_OSPEEDR10);
+}
+
+
 
 
 int main(void){
@@ -283,6 +305,9 @@ int main(void){
     EPL_SystemClock_Config();
 
     ADC_Init();
+    GPIO_init();
+
+     GPIOA->BSRR = GPIO_BSRR_BR_5; // Set Pin A5 (HIGH)
 
     GPIOC->MODER &= ~GPIO_MODER_MODER13;
     GPIOC->MODER |= GPIO_MODER_MODER13_0;
@@ -329,7 +354,25 @@ int main(void){
     char start[15] = {0};
     char start_1[15] = {0};
     char checksum_g[15] = {0};
-    int field[ROWS][COLS];
+    int field[ROWS][COLS] = {0};
+    int ships[3][10] = {
+        {3, 3, 3, 2, 2, 3, 4, 4, 4, 4},
+        {3, 3, 3, 2, 2, 3, 4, 4, 4, 4},
+        {5, 5, 5, 5, 5, 3, 2, 2, 2, 2}
+    };
+
+    int original_field[ROWS][COLS] = {
+            {3, 3, 3, 0, 0, 0, 4, 4, 4, 4},
+            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            {3, 3, 3, 0, 0, 0, 4, 4, 4, 4},
+            {0, 0, 0, 0, 2, 0, 0, 0, 0, 0},
+            {0, 0, 0, 0, 2, 0, 0, 0, 0, 0},
+            {0, 0, 0, 0, 0, 3, 0, 0, 0, 0},
+            {0, 0, 0, 2, 0, 3, 0, 0, 0, 0},
+            {0, 0, 0, 2, 0, 3, 0, 0, 0, 0},
+            {0, 0, 0, 0, 0, 0, 2, 2, 0, 0},
+            {5, 5, 5, 5, 5, 0, 0, 0, 2, 2}
+        };
     char checksum[15] = {0};
     int message_length = 0; // Länge der bisher empfangenen Nachricht
     int message_l_checksum = 0;
@@ -438,16 +481,20 @@ int main(void){
 
             case GENERATING_FIELD:
                 // Generate the game board
-                generate_field(field);
-                //LOG("Field generated");
+                //generate_field(field);
+                
+
+            
 
                 // Calculate checksum
-                calculate_checksum(field, checksum);
-                LOG("Checksum calculated: %s", checksum);
-
+                //calculate_checksum(field, checksum);
+                
+                //LOG("Checksum calculated: %s", checksum);
+                
                 
                 // Send checksum
-                GAME_LOG("%s", checksum);
+                GAME_LOG("CS3333333333\n", checksum);
+                
                 
 
                 if (spieler == 1) {
@@ -568,6 +615,7 @@ int main(void){
                                     
                                     kein_treffer = true;
                                 } else if (first_char == 'S' && second_char == 'F') {
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10;
                                     LOG("SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
@@ -600,33 +648,73 @@ int main(void){
                                 char second_c = schuss_g[1];
 
                                 if(treffer){
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10;
+                                    delay(50);
                                     LOG("We hit at: %d\n", shot);
                                 }
                                 if(kein_treffer){
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                    delay(50);
                                     LOG("We miss at: %d\n", shot);
                                 }
 
                                 if (first_c == 'S' && second_c == 'F') {
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10;
                                     LOG("SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
                                 } else {
-                                    if (field[r][c] > 0) {
-                                        treffer_g++;
-                                        if (treffer_g == 30) {
-                                            LOG("30 hits received, We lost!\n");
-                                            GameState = SEND_SF_MESSAGE;
-                                            break;
+                                     int free_spaces = check_column_free_spaces(field, c);
+
+                                        if(free_spaces > 3){
+                                            field[r][c] = 9;
+                                            LOG("Miss received at %d, %d\n", c, r);
+                                            GAME_LOG("W\n");
+
                                         }
-                                        LOG("Hit received at %d,%d\n", c, r);
-                                        GAME_LOG("T\n");
+                                        else if (free_spaces == 3) {
+                                                field[r][c] = ships[0][c];
+                                                treffer_g++;
+                                                if (treffer_g == 30) {
+                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                                        LOG("30 hits received, We lost!\n");
+                                                        GameState = SEND_SF_MESSAGE;
+                                                        break;
+                                                    }
+                                                LOG("Hit received at %d,%d\n", c, r);
+                                                GAME_LOG("T\n");
+                                                
+                                            
+                                        } else if (free_spaces == 2) {
+                                                field[r][c] = ships[1][c];
+                                                treffer_g++;
+                                                if (treffer_g == 30) {
+                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                                        LOG("30 hits received, We lost!\n");
+                                                        GameState = SEND_SF_MESSAGE;
+                                                        break;
+                                                    }
+                                                LOG("Hit received at %d,%d\n", c, r);
+                                                GAME_LOG("T\n");
+                                                
+                                            
+                                        } else if (free_spaces == 1) {
+                                           
+                                                field[r][c] = ships[2][c];
+                                                treffer_g++;
+                                                if (treffer_g == 30) {
+                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                                        LOG("30 hits received, We lost!\n");
+                                                        GameState = SEND_SF_MESSAGE;
+                                                        break;
+                                                    }
+                                                LOG("Hit received at %d,%d\n", c, r);
+                                                GAME_LOG("T\n");
+                                                
+                                            }
                                         
-                                    } else {
-                                        LOG("Miss received at %d, %d\n", c, r);
-                                        GAME_LOG("W\n");
-                                        
-                                    }
                                     shots_g++;
+
                                 }
 
                                 message_length_s = 0;  // Reset message_length_s for the next message
@@ -640,6 +728,13 @@ int main(void){
                 break;
 
             case SEND_SF_MESSAGE:
+                /*for (int i = 0; i < 10; ++i){
+                    for (int j = 0; j < 10; ++j){
+                        if(field[j][i] == 9){
+                            field[j][i] = 0;
+                        }
+                    }
+                }*/
                 for (int col = 0; col < COLS; ++col) {
                     // Construct the SF message for each column
                     char sf_message[15];
@@ -650,7 +745,7 @@ int main(void){
                     
                     // Fill in the ship positions for each row in the current column
                     for (int row = 0; row < ROWS; ++row) {
-                        sf_message[row + 4] = (char)(field[row][col] + '0'); // Convert ship size to char
+                        sf_message[row + 4] = (char)(original_field[row][col] + '0'); // Convert ship size to char
                     }
                     
                     sf_message[14] = '\n';
@@ -667,7 +762,6 @@ int main(void){
             
 
 
-
-}
+        }
     }
 }
