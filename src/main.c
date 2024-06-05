@@ -8,15 +8,6 @@
 #include <string.h>
 
 
-
-// spielfeldnachrichten einlesen und schauen ob schummeln
-// überprüfen ob 30 treffer auch 30 verschiedene felder sind !
-// schummeln !
-// (intelligente schussstrategie erweitern)
-
-
-
-
 #define DEBUG
 
 #define LOGGING
