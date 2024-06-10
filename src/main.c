@@ -30,22 +30,22 @@
 #endif
 
 int logging(uint8_t* msg, size_t size) {
-    // Buffer for the new message with an additional character for '#'
-    uint8_t new_msg[size + 2]; // +1 for '#' and +1 for null terminator
+    // Puffer für die neue Nachricht mit einem zusätzlichen Zeichen für '#'
+    uint8_t new_msg[size + 2]; // +1 für '#' und +1 für Null-Terminierung
 
-    // Add '#' at the beginning
+    // Füge '#' am Anfang hinzu
     new_msg[0] = '#';
 
-    // Copy the original message after it
+    // Kopiere die ursprüngliche Nachricht danach
     memcpy(new_msg + 1, msg, size);
 
-    // Null-terminate the new message
+    // Null-terminiere die neue Nachricht
     new_msg[size + 1] = '\0';
 
-    // Print the new message (can be modified to store it elsewhere)
+    // Drucke die neue Nachricht (kann modifiziert werden, um sie woanders zu speichern)
     printf("%s", new_msg);
 
-    return 0; // Success
+    return 0; 
 }
 
 
@@ -59,13 +59,7 @@ int logging(uint8_t* msg, size_t size) {
 #define ROWS 10
 #define COLS 10
 
-
-// Maximal mögliche Länge der Nachricht (einschließlich Nullterminator)
-#define MAX_MESSAGE_LENGTH 15 
-
 #define TIMEOUT 100000
-
-
 
 
 // For supporting printf function we override the _write function to redirect the output to UART
@@ -92,26 +86,26 @@ void error(void){
 }
 
 void ADC_Init(void) {
-    // Enable the GPIOA and ADC clock
+    // Aktivieren des GPIOA- und ADC-Taktes
     RCC->AHBENR  |= RCC_AHBENR_GPIOAEN; 
     RCC->APB2ENR |= RCC_APB2ENR_ADCEN; 
 
-    // Set the GPIOA pin 0 to analog mode
+    // Setzen des GPIOA-Pins 0 auf den Analogmodus
     GPIOA->MODER |= GPIO_MODER_MODER0;  
 
-    // Set the ADC to continuous mode and select scan direction
+    // Setzen des ADC auf den kontinuierlichen Modus und Auswahl der Scan-Richtung
     ADC1->CHSELR |= ADC_CHSELR_CHSEL0 ; 
     ADC1->CFGR1  |= ADC_CFGR1_CONT | ADC_CFGR1_SCANDIR;
-    // Set Sample time 
+   // Einstellen der Abtastzeit
     ADC1->SMPR   |= ADC_SMPR_SMP_0;
 
-    // If ADC is not ready set the ADC ready bit
+    // Wenn der ADC nicht bereit ist, das ADC-Bereitschaftsbit setzen
     if ((ADC1->ISR & ADC_ISR_ADRDY) != 0){   
         ADC1->ISR |= ADC_ISR_ADRDY; 
     }
-    // Enable the ADC
+    // ADC aktivieren
     ADC1->CR |= ADC_CR_ADEN; 
-    // Wait for the ADC to be ready
+     // Warten, bis der ADC bereit ist
     while ((ADC1->ISR & ADC_ISR_ADRDY) == 0){
         if (timeout(TIMEOUT)){
             error();
@@ -123,16 +117,18 @@ void ADC_Init(void) {
 }
 
 uint16_t ADC_Read(void) {
+    // Warten, bis die End-of-Conversion (EOC)-Flagge gesetzt ist
     while ((ADC1->ISR & ADC_ISR_EOC) == 0) {
         if (timeout(TIMEOUT)){
             error();
         }
     }
+    // Den Konvertierungswert aus dem Datenregister zurückgeben
     return ADC1->DR;
 }
 
 
-// Funktion zur Generierung eines zufälligen Spielfelds mit den gegebenen Schiffen
+// Funktion zur zufälligen Generierung eines Spielfelds mit festgelegten Schiffen
 void generate_field(int field[10][10]) {
     // Initialisiere das Spielfeld mit 0 (kein Schiff)
     for (int i = 0; i < 10; ++i) {
@@ -141,64 +137,69 @@ void generate_field(int field[10][10]) {
         }
     }
 
-    // Setze die Schiffe auf das Spielfeld
-    int ships[] = {5, 4, 4, 3, 3, 3, 2, 2, 2, 2}; // Größe der Schiffe
-    srand(time(NULL));
-    for (int s = 0; s < 10; ++s) {
-        int ship_size = ships[s];
-        // Wähle zufällige Startposition und Orientierung für das Schiff
+    // Definiere die Schiffgrößen
+    int ship_sizes[] = {5, 4, 4, 3, 3, 3, 2, 2, 2, 2};
+    int num_ships = sizeof(ship_sizes) / sizeof(ship_sizes[0]);
 
-        int row = ADC_Read() % 10;
-        int col = ADC_Read() % 10;
-        int horizontal = ADC_Read() % 2; // 0 für horizontal, 1 für vertikal
-        // Überprüfe, ob das Schiff an der gewählten Position platziert werden kann
-        int valid_position = 1;
-        if (horizontal) {
-            if (col + ship_size > 10) {
-                valid_position = 0;
-            } else {
-                for (int i = col; i < col + ship_size; ++i) {
-                    if (field[row][i] != 0) {
-                        valid_position = 0;
-                        break;
-                    }
-                }
-            }
-        } else {
-            if (row + ship_size > 10) {
-                valid_position = 0;
-            } else {
-                for (int i = row; i < row + ship_size; ++i) {
-                    if (field[i][col] != 0) {
-                        valid_position = 0;
-                        break;
-                    }
-                }
-            }
-        }
-        // Platziere das Schiff auf dem Spielfeld, wenn die Position gültig ist
-        if (valid_position) {
+    // Platziere jedes Schiff auf dem Spielfeld
+    for (int s = 0; s < num_ships; ++s) {
+        int size = ship_sizes[s];
+        int placed = 0;
+
+        // Versuche, das Schiff zu platzieren, bis eine gültige Position gefunden wird
+        while (!placed) {
+            int row = ADC_Read() % 10;
+            int col = ADC_Read() % 10;
+            int horizontal = ADC_Read() % 2; // 0 für horizontal, 1 für vertikal
+            int can_place = 1;
+
+            // Überprüfe die Gültigkeit der Platzierung
             if (horizontal) {
-                for (int i = col; i < col + ship_size; ++i) {
-                    field[row][i] = ship_size;
+                if (col + size <= 10) {
+                    for (int i = col; i < col + size; ++i) {
+                        if (field[row][i] != 0) {
+                            can_place = 0;
+                            break;
+                        }
+                    }
+                } else {
+                    can_place = 0;
                 }
             } else {
-                for (int i = row; i < row + ship_size; ++i) {
-                    field[i][col] = ship_size;
+                if (row + size <= 10) {
+                    for (int i = row; i < row + size; ++i) {
+                        if (field[i][col] != 0) {
+                            can_place = 0;
+                            break;
+                        }
+                    }
+                } else {
+                    can_place = 0;
                 }
             }
-        } else {
-            // Versuche ein anderes Schiff zu platzieren, wenn die Position ungültig ist
-            s--;
+
+            // Falls gültig, platziere das Schiff
+            if (can_place) {
+                if (horizontal) {
+                    for (int i = col; i < col + size; ++i) {
+                        field[row][i] = size;
+                    }
+                } else {
+                    for (int i = row; i < row + size; ++i) {
+                        field[i][col] = size;
+                    }
+                }
+                placed = 1;
+            }
         }
     }
 }
 
 // Funktion zur Berechnung der Spielfeldchecksumme und Erstellung der Nachricht
-void calculate_checksum(int field[10][10], char checksum_msg[]) {
+void calculate_checksum(int field[10][10], char checksum[]) {
     // Initialisierung der Prüfsumme-Nachricht mit 'CS'
-    checksum_msg[0] = 'C';
-    checksum_msg[1] = 'S';
+    checksum[0] = 'C';
+    checksum[1] = 'S';
 
     // Zähler für die Position im checksum_msg
     int msg_pos = 2;
@@ -210,12 +211,12 @@ void calculate_checksum(int field[10][10], char checksum_msg[]) {
             ships_count += (field[row][col] > 0); // Zähle die Schiffe in der aktuellen Spalte
         }
         // Füge die Anzahl der Schiffe der Nachricht hinzu
-        checksum_msg[msg_pos++] = (char)(ships_count + '0');
+        checksum[msg_pos++] = (char)(ships_count + '0');
     }
 
     // Füge den Zeilenumbruch hinzu
-    checksum_msg[msg_pos] = '\n';
-    checksum_msg[msg_pos + 1] = '\0'; // Nullterminierung der Zeichenkette
+    checksum[msg_pos] = '\n';
+    checksum[msg_pos + 1] = '\0'; // Nullterminierung der Zeichenkette
 }
 
 // Funktion zur Extraktion der Trefferzahlen aus der empfangenen Checksumme
@@ -249,18 +250,21 @@ void sort_columns_by_hits(int* hit_counts, int* sorted_columns) {
     }
 }
 
-bool isShotAlreadyTaken(int shot, int takenShots[], int meine_shots){
-    for (int i = 0; i < meine_shots; ++i){
-        if(takenShots[i] == shot){
-            return true;
+bool isShotAlreadyTaken(int shot, int takenShots[], int meine_shots) {
+    // Durchlaufe die Liste der bereits abgegebenen Schüsse
+    for (int i = 0; i < meine_shots; ++i) {
+        // Wenn der aktuelle Schuss mit einem der bereits abgegebenen Schüsse übereinstimmt
+        if (takenShots[i] == shot) {
+            return true; // Gib true zurück, da der Schuss bereits abgegeben wurde
         }
     }
-    return false;
+    return false; // Gib false zurück, da der Schuss noch nicht abgegeben wurde
 }
 
 
 
-// Function to check if a column has only three, two or one free spaces left
+
+// Funktion zur Überprüfung, ob eine Spalte nur noch drei, zwei oder einen freien Platz hat
 int check_column_free_spaces(int field[ROWS][COLS], int c) {
     int free_spaces = 0;
     for (int i = 0; i < ROWS; i++) {
@@ -271,26 +275,16 @@ int check_column_free_spaces(int field[ROWS][COLS], int c) {
     return free_spaces;
 }
 
-// Function to check if a column has only three, two or one free spaces left
-int check_column_free_places(int field[ROWS][COLS], int c) {
-    int free_spaces = 0;
-    for (int i = 0; i < ROWS; i++) {
-        if (field[i][c] == 9) {
-            free_spaces++;
-        }
-    }
-    return free_spaces;
-}
 
-
-// Function to add a small delay
+// Funktion zur Hinzufügung einer kurzen Verzögerung
 void delay(uint32_t milliseconds) {
-    // Assuming a clock frequency of 48 MHz
+    // Angenommen, eine Taktfrequenz von 48 MHz
     for (uint32_t i = 0; i < milliseconds * 48000; ++i) {
         __NOP();
     }
 }
 
+// Für LED
 void GPIO_init(void) {
     RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
 
@@ -340,8 +334,6 @@ int main(void){
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN; // Enable GPIOC clock
     GPIOC->MODER &= ~(GPIO_MODER_MODER13); // Clear MODER13 bits for input mode
 
-    uint8_t rxb = '\0';
-
     // Variable to track the game state
     enum GameState {
         WAITING_FOR_START,
@@ -363,7 +355,7 @@ int main(void){
         {5, 5, 5, 5, 5, 3, 2, 2, 2, 2}
     };
 
-    int original_field[ROWS][COLS] = {
+    /*int original_field[ROWS][COLS] = {
             {3, 3, 3, 0, 0, 0, 4, 4, 4, 4},
             {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
             {3, 3, 3, 0, 0, 0, 4, 4, 4, 4},
@@ -374,13 +366,13 @@ int main(void){
             {0, 0, 0, 2, 0, 3, 0, 0, 0, 0},
             {0, 0, 0, 0, 0, 0, 2, 2, 0, 0},
             {5, 5, 5, 5, 5, 0, 0, 0, 2, 2}
-        };
-    char checksum[15] = {0};
+        };*/
+ 
     int message_length = 0; // Länge der bisher empfangenen Nachricht
     int message_l_checksum = 0;
     int message_l = 0;
     int message_length_s = 0;
-    int message_sf_length = 0;
+
     // Array zur Speicherung der Anzahl der Treffer in den Spalten
     int hit_counts[BOARD_SIZE] = {0};
     // Array zur Speicherung der sortierten Spalten-Indizes
@@ -402,36 +394,18 @@ int main(void){
 
     char nachricht[16] = {0};
     char schuss_g[16] = {0};
-    char message[16] = {0};
+
 
     int takenShots[100] = {0};
-    int zaehler = 0;
-
-    char sf_g[16] = {0};
-
-    // Variablen zum Speichern der SF-Nachrichten
-    char sf_messages[10][16];
-    int sf_message_count = 0;
-        
 
 
     for(;;){
 
-        // Wait for the data to be received
-        //while( !( USART2->ISR & USART_ISR_RXNE ) );
-
-        // Read the data from the RX buffer
-        //rxb = USART2->RDR;
-
-        // Print the received data to the console
-        //LOG("[DEBUG-LOG]: %d\r\n", rxb );
-        //GameState = WAITING_FOR_START;
-        
         switch(GameState) {
             case WAITING_FOR_START:
-                // Check the start button
+                // Überprüfe die Starttaste
                 if ((GPIOC->IDR & GPIO_IDR_13) == 0) {
-                    // Send start message and change game state
+                    // Sende Startnachricht und ändere den Spielzustand
                     LOG("button pressed\n");
                     GAME_LOG("START11928041\n");
                     
@@ -439,16 +413,17 @@ int main(void){
                     GameState = WAITING_FOR_CHECKSUM;
                     break;
                 } 
+                // Überprüfe, ob Daten über USART2 empfangen wurden
                 if (USART2->ISR & USART_ISR_RXNE) {
                     char received_char = USART2->RDR;
                     start[message_length] = received_char;
                     message_length++;
                                 
-                    // Check if the last received character is '\n'
+                    // Überprüfe, ob das zuletzt empfangene Zeichen '\n' ist
                     if (received_char == '\n') {
                         LOG("Received: %s", start);
-                        spieler = 2; // Set player to 2
-                        GameState = GENERATING_FIELD; // Set game state accordingly
+                        spieler = 2; // Spieler auf 2 setzen
+                        GameState = GENERATING_FIELD; // Spielzustand entsprechend setzen
                         message_length = 0;
                         break;
                     }
@@ -456,16 +431,16 @@ int main(void){
                 break; 
 
             case WAITING_FOR_CHECKSUM:
-                // Check for incoming messages
+                // Überprüfe eingehende Nachrichten
                 if (USART2->ISR & USART_ISR_RXNE) {
                     char received_c = USART2->RDR;
                     checksum_g[message_l_checksum] = received_c;
                     message_l_checksum++;
-                    // Check for checksum message
+                    // Überprüfe auf die Prüfsummen-Nachricht
                     if (received_c == '\n') {
-                        checksum_g[message_l_checksum] = '\0'; // Add null terminator
+                        checksum_g[message_l_checksum] = '\0'; // Nullterminator hinzufügen
                         LOG("Received checksum: %s", checksum_g);
-                        message_l_checksum = 0; // Reset the counter
+                        message_l_checksum = 0; // Zähler zurücksetzen
                         if (spieler == 2) {
                             GAME_LOG("START11928041\n");
                             
@@ -494,35 +469,32 @@ int main(void){
                 
                 // Send checksum
                 //GAME_LOG("%s", checksum); //Für zufälliges spielfeld
-                GAME_LOG("CS3333333333\n", checksum);
-                
-                
+                GAME_LOG("CS3333333333\n");
 
                 if (spieler == 1) {
-                    
                     GameState = WAITING_FOR_START_MESSAGE;
                     break;
                 }
                 if (spieler == 2) {
-                
                     GameState = WAITING_FOR_CHECKSUM;
                     break;
                 }
                 break;
 
+
             case WAITING_FOR_START_MESSAGE:
-                // Check for incoming messages
+                // Überprüfe eingehende Nachrichten
                 if (USART2->ISR & USART_ISR_RXNE) {
                     char received_ch = USART2->RDR;
                     start_1[message_length] = received_ch;
                     message_length++;
-                    // Check if the last received character is '\n'
+                    // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
                     if (received_ch == '\n') {
                         LOG("Received: %s", start_1);
                         kein_treffer = true;
                         schiessen = true;
                         message_length = 0;
-                        GameState = PLAYING; // Set game state accordingly
+                        GameState = PLAYING; // Spielzustand entsprechend setzen
                         break;  
                     }
                 }
@@ -531,11 +503,11 @@ int main(void){
             case PLAYING:
                 // Game logic
 
-                // Extract hit counts from the checksum
+                // Extrahiere Trefferzahlen aus der Prüfsumme
                 extract_hit_counts(checksum_g, hit_counts);
                
 
-                // Sort columns based on hit counts
+                // Sortiere Spalten basierend auf den Trefferzahlen
                 sort_columns_by_hits(hit_counts, sorted_columns);
                 
                 
@@ -543,11 +515,11 @@ int main(void){
                 while (meine_treffer < 30 && treffer_g < 30 && meine_shots <= 100 && shots_g <= 100) {
                     if (schiessen) {
                         if (treffer) {
-                            // Find adjacent field
+                            // Benachbartes Feld finden
                             int shot_found = 0;
-                            for (int dir = 0; dir < 4 && !shot_found; ++dir) {
+                            for (int s = 0; s < 4 && !shot_found; ++s) {
                                 int new_row = row, new_col = col;
-                                switch (dir) {
+                                switch (s) {
                                     case 0: new_row = row + 1; break;
                                     case 1: new_row = row - 1; break;
                                     case 2: new_col = col + 1; break;
@@ -573,7 +545,7 @@ int main(void){
                             schiessen = false;
                         }
                         if (kein_treffer) {
-                            // Search first column or column by column from sorted_columns for random row
+                            // Suche zuerst Spalte oder Spalte für Spalte von den sortierten Spalten nach einer zufälligen Zeile
                             bool treffer_gefunden = false;
                             for (int i = 0; i < COLS && !treffer_gefunden; ++i) {
                                 col = sorted_columns[i];
@@ -596,27 +568,28 @@ int main(void){
                     }
 
                     if (schuss_gesendet) {
+                        // Wenn ein Schuss gesendet wurde, überprüfe auf eingehende Nachrichten
                         if (USART2->ISR & USART_ISR_RXNE) {
                             char received_m = USART2->RDR;
                             nachricht[message_l] = received_m;
                             message_l++;
 
-                            // Check if the last received character is '\n'
+                             // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
                             if (received_m == '\n') {
-                                nachricht[message_l] = '\0'; // Null-terminate the string
+                                nachricht[message_l] = '\0'; // Nullterminierung des Strings
                                 char first_char = nachricht[0];
                                 char second_char = nachricht[1];
 
-                                // Check if the first character is 'T' or 'W'
+                                // Überprüfe, ob das erste Zeichen 'T' oder 'W' ist
                                 if (first_char == 'T') {
                                     meine_treffer++;
                                     
-                                    treffer = true;
+                                    treffer = true; // Treffer vorhanden
                                 } else if (first_char == 'W') {
                                     
-                                    kein_treffer = true;
+                                    kein_treffer = true; // Kein Treffer
                                 } else if (first_char == 'S' && second_char == 'F') {
-                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10;
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10; // LED leuchtet grün
                                     LOG("SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
@@ -632,35 +605,36 @@ int main(void){
                     }
 
                     if (beschossen_werden) {
+                        // Wenn wir beschossen werden, überprüfe auf eingehende Nachrichten
                         if (USART2->ISR & USART_ISR_RXNE) {
                             char received = USART2->RDR;
 
                             schuss_g[message_length_s] = received;
                             message_length_s++;
 
-                            // Check if the last received character is '\n'
+                            // Überprüfe, ob das letzte empfangene Zeichen '\n' ist
                             if (received == '\n') {
-                                schuss_g[message_length_s] = '\0';  // Null-terminate the string
+                                schuss_g[message_length_s] = '\0';  // Nullterminierung des Strings
 
-                                // Extract row and column information from schuss_g
+                                // Extrahiere Zeilen- und Spalteninformationen aus schuss_g
                                 int r = schuss_g[5] - '0';
                                 int c = schuss_g[4] - '0';
                                 char first_c = schuss_g[0];
                                 char second_c = schuss_g[1];
 
                                 if(treffer){
-                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10;
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10; // LED leuchtet grün
                                     delay(50);
                                     LOG("We hit at: %d\n", shot);
                                 }
                                 if(kein_treffer){
-                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10; // LED leuchtet rot
                                     delay(50);
                                     LOG("We miss at: %d\n", shot);
                                 }
 
                                 if (first_c == 'S' && second_c == 'F') {
-                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10;
+                                    GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BS_9 | GPIO_BSRR_BR_10; // LED leuchtet grün
                                     LOG("SF message received, We won!\n");
                                     GameState = SEND_SF_MESSAGE;
                                     break;
@@ -682,6 +656,8 @@ int main(void){
                                         
                                     } Für zufälliges Feld*/
 
+
+                                    // Kontrollieren wie viele zeilen in der spalte noch frei sind, wenn nur noch 3 sind setze treffer
                                      int free_spaces = check_column_free_spaces(field, c);
 
                                         if(free_spaces > 3){
@@ -694,7 +670,7 @@ int main(void){
                                                 field[r][c] = ships[0][c];
                                                 treffer_g++;
                                                 if (treffer_g == 30) {
-                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10; // LED leuchtet rot
                                                         LOG("30 hits received, We lost!\n");
                                                         GameState = SEND_SF_MESSAGE;
                                                         break;
@@ -707,7 +683,7 @@ int main(void){
                                                 field[r][c] = ships[1][c];
                                                 treffer_g++;
                                                 if (treffer_g == 30) {
-                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10; // LRD leuchtet rot
                                                         LOG("30 hits received, We lost!\n");
                                                         GameState = SEND_SF_MESSAGE;
                                                         break;
@@ -721,7 +697,7 @@ int main(void){
                                                 field[r][c] = ships[2][c];
                                                 treffer_g++;
                                                 if (treffer_g == 30) {
-                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10;
+                                                        GPIOA->BSRR = GPIO_BSRR_BS_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BS_10; // LED leuchtet rot
                                                         LOG("30 hits received, We lost!\n");
                                                         GameState = SEND_SF_MESSAGE;
                                                         break;
@@ -735,7 +711,7 @@ int main(void){
 
                                 }
 
-                                message_length_s = 0;  // Reset message_length_s for the next message
+                                message_length_s = 0; 
                                 memset(schuss_g, 0, sizeof(schuss_g));
                                 schiessen = true;
                                 beschossen_werden = false;
@@ -756,7 +732,7 @@ int main(void){
                         }
                     }
                 }
-                // Ensure each column has 3 hits
+                // Kontrollieren, ob jede spalte drei treffer hat, sonst setze treffer für SF-message
                 for (int c = 0; c < COLS; ++c) {
                     int hit_count = 0;
                     for (int r = 0; r < ROWS; ++r) {
@@ -767,19 +743,19 @@ int main(void){
                     for (int r = 0; r < ROWS && hit_count < 3; ++r) {
                         if(hit_count == 0){
                         if (field[r][c] == 0) {
-                            field[r][c] = ships[0][c];  // Mark a hit (using 1 as an example, change as necessary)
+                            field[r][c] = ships[0][c];  
                             hit_count++;
                         }
                         }
                         if(hit_count == 1){
                         if (field[r][c] == 0) {
-                            field[r][c] = ships[1][c];  // Mark a hit (using 1 as an example, change as necessary)
+                            field[r][c] = ships[1][c];  
                             hit_count++;
                         }
                         }
                         if(hit_count == 2){
                         if (field[r][c] == 0) {
-                            field[r][c] = ships[2][c];  // Mark a hit (using 1 as an example, change as necessary)
+                            field[r][c] = ships[2][c];  
                             hit_count++;
                         }
                         }
@@ -793,7 +769,7 @@ int main(void){
 
                 for (int col = 0; col < COLS; ++col) {
                     // Construct the SF message for each column
-                    char sf_message[15];
+                    char sf_message[16];
                     sf_message[0] = 'S';
                     sf_message[1] = 'F';
                     sf_message[2] = (char)(col + '0'); // Convert column number to char
