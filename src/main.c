@@ -271,6 +271,17 @@ int check_column_free_spaces(int field[ROWS][COLS], int c) {
     return free_spaces;
 }
 
+// Function to check if a column has only three, two or one free spaces left
+int check_column_free_places(int field[ROWS][COLS], int c) {
+    int free_spaces = 0;
+    for (int i = 0; i < ROWS; i++) {
+        if (field[i][c] == 9) {
+            free_spaces++;
+        }
+    }
+    return free_spaces;
+}
+
 
 // Function to add a small delay
 void delay(uint32_t milliseconds) {
@@ -475,15 +486,14 @@ int main(void){
                 //generate_field(field);
                 
 
-            
-
                 // Calculate checksum
-                //calculate_checksum(field, checksum);
+                //calculate_checksum(field, checksum); // zufälliges Spielfeld
                 
                 //LOG("Checksum calculated: %s", checksum);
                 
                 
                 // Send checksum
+                //GAME_LOG("%s", checksum); //Für zufälliges spielfeld
                 GAME_LOG("CS3333333333\n", checksum);
                 
                 
@@ -655,6 +665,23 @@ int main(void){
                                     GameState = SEND_SF_MESSAGE;
                                     break;
                                 } else {
+
+                                     /*if (field[r][c] > 0) {
+                                        treffer_g++;
+                                        if (treffer_g == 30) {
+                                            LOG("30 hits received, We lost!\n");
+                                            GameState = SEND_SF_MESSAGE;
+                                            break;
+                                        }
+                                        LOG("Hit received at %d,%d\n", c, r);
+                                        GAME_LOG("T\n");
+                                        
+                                    } else {
+                                        LOG("Miss received at %d, %d\n", c, r);
+                                        GAME_LOG("W\n");
+                                        
+                                    } Für zufälliges Feld*/
+
                                      int free_spaces = check_column_free_spaces(field, c);
 
                                         if(free_spaces > 3){
@@ -719,13 +746,51 @@ int main(void){
                 break;
 
             case SEND_SF_MESSAGE:
-                /*for (int i = 0; i < 10; ++i){
+
+
+                // Für schummeln
+                 for (int i = 0; i < 10; ++i){
                     for (int j = 0; j < 10; ++j){
                         if(field[j][i] == 9){
                             field[j][i] = 0;
                         }
                     }
-                }*/
+                }
+                // Ensure each column has 3 hits
+                for (int c = 0; c < COLS; ++c) {
+                    int hit_count = 0;
+                    for (int r = 0; r < ROWS; ++r) {
+                        if (field[r][c] != 0) {
+                            hit_count++;
+                        }
+                    }
+                    for (int r = 0; r < ROWS && hit_count < 3; ++r) {
+                        if(hit_count == 0){
+                        if (field[r][c] == 0) {
+                            field[r][c] = ships[0][c];  // Mark a hit (using 1 as an example, change as necessary)
+                            hit_count++;
+                        }
+                        }
+                        if(hit_count == 1){
+                        if (field[r][c] == 0) {
+                            field[r][c] = ships[1][c];  // Mark a hit (using 1 as an example, change as necessary)
+                            hit_count++;
+                        }
+                        }
+                        if(hit_count == 2){
+                        if (field[r][c] == 0) {
+                            field[r][c] = ships[2][c];  // Mark a hit (using 1 as an example, change as necessary)
+                            hit_count++;
+                        }
+                        }
+
+                    }
+                }
+
+
+               
+
+
                 for (int col = 0; col < COLS; ++col) {
                     // Construct the SF message for each column
                     char sf_message[15];
@@ -736,7 +801,7 @@ int main(void){
                     
                     // Fill in the ship positions for each row in the current column
                     for (int row = 0; row < ROWS; ++row) {
-                        sf_message[row + 4] = (char)(original_field[row][col] + '0'); // Convert ship size to char
+                        sf_message[row + 4] = (char)(field[row][col] + '0'); // Convert ship size to char
                     }
                     
                     sf_message[14] = '\n';
